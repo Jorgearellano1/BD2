@@ -24,10 +24,17 @@ class StorageFile(ABC):
     def range_search(
         self,
         key_column: str,
-        begin_key: Key,
-        end_key: Key
+        begin_key: Key | None,
+        end_key: Key | None,
+        include_begin: bool = True,
+        include_end: bool = True
     ) -> list[CleanRecord]:
-        """Busca registros en un rango de una columna."""
+        """
+        Busca registros de una columna dentro del rango indicado.
+
+        None representa ausencia de limite.
+        include_begin/include_end indican si los limites son inclusivos.
+        """
         pass
 
     @abstractmethod

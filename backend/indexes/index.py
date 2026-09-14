@@ -29,8 +29,19 @@ class Index(ABC):
         pass
 
     @abstractmethod
-    def range_search(self, begin_key: Key, end_key: Key) -> list[RID]:
-        """Busca los RIDs dentro del rango."""
+    def range_search(
+        self,
+        begin_key: Key | None,
+        end_key: Key | None,
+        include_begin: bool = True,
+        include_end: bool = True
+    ) -> list[RID]:
+        """
+        Busca y retorna los RIDs dentro del rango indicado.
+
+        None representa ausencia de limite.
+        include_begin/include_end indican si los limites son inclusivos.
+        """
         pass
 
     @abstractmethod
@@ -82,12 +93,17 @@ class Index(ABC):
     @abstractmethod
     def range_search_records(
         self,
-        begin_key: Key,
-        end_key: Key
+        begin_key: Key | None,
+        end_key: Key | None,
+        include_begin: bool = True,
+        include_end: bool = True
     ) -> list[CleanRecord]:
         """
-        Obtiene desde el almacenamiento los registros cuyos RIDs
-        devuelve este indice para el rango indicado.
+        Retorna los registros del almacenamiento cuyos RIDs pertenecen
+        al rango indicado por este indice.
+
+        None representa ausencia de limite.
+        include_begin/include_end indican si los limites son inclusivos.
         """
         pass
 
