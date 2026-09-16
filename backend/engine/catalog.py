@@ -41,6 +41,7 @@ RID_FORMAT = 'qq'
 RID_SIZE = struct.calcsize(RID_FORMAT)
 
 
+
 class TableMetadata:
     """
     Metadata de una tabla con esquema de registros de longitud fija.

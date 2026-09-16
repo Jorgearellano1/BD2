@@ -1,6 +1,13 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from engine.catalog import Key, RawRecord, CleanRecord, RID
+
+if TYPE_CHECKING:
+    from engine.catalog import TableMetadata
+    from storage.heapFile import HeapFile
 
 
 class Index(ABC):
@@ -53,6 +60,23 @@ class Index(ABC):
         """
         pass
 
+    @abstractmethod
+    def delete_all(self, key: Key) -> list[RID]:
+        """
+        Elimina todas las entradas asociadas a la clave y retorna sus RIDs.
+        """
+        pass
+
+    @abstractmethod
+    def clear(self) -> None:
+        """Vacia solo este indice (no toca el almacenamiento asociado)."""
+        pass
+
+    @abstractmethod
+    def count(self) -> int:
+        """Cantidad de entradas (key, RID) del indice."""
+        pass
+
     # Operaciones que combinan este indice con su almacenamiento asociado
     #
     # Estas operaciones coordinan unicamente:
@@ -61,16 +85,42 @@ class Index(ABC):
     #
     # No sincronizan otros indices que puedan utilizar el mismo
     # almacenamiento. La coordinacion entre multiples indices corresponde
-    # a una capa superior (por ejemplo, Table).
+    # a una capa superior.
 
+    @staticmethod
     @abstractmethod
     def bulk_load(
-        self,
+        table_meta: TableMetadata,
+        heap: HeapFile,
+        key_column: str,
         source_path: str,
-        delimiter: str = ','
-    ) -> None:
+        delimiter: str = ',',
+        data_dir: str = 'data',
+        sort_buffer_size: int = 128 * 1024 * 1024
+    ) -> Index:
         """
-        Carga los registros en el almacenamiento y construye este indice.
+        Crea un indice nuevo cargando el origen en el almacenamiento recibido
+        (que debe estar vacio) y construyendo el indice.
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def build_from_storage(
+        table_meta: TableMetadata,
+        heap: HeapFile,
+        key_column: str,
+        data_dir: str = 'data',
+        sort_buffer_size: int = 128 * 1024 * 1024
+    ) -> Index:
+        """Crea un indice nuevo a partir de los registros del almacenamiento."""
+        pass
+
+    @abstractmethod
+    def rebuild_from_storage(self) -> None:
+        """
+        Reconstruye este indice a partir de los registros del almacenamiento.
+        Ante un fallo, el indice previo debe permanecer intacto.
         """
         pass
 
@@ -132,14 +182,16 @@ class Index(ABC):
         pass
 
     @abstractmethod
-    def build_from_storage(self) -> None:
+    def delete_records(self, key: Key) -> list[CleanRecord]:
         """
-        Construye este indice a partir de los registros existentes
-        en el almacenamiento asociado.
+        Elimina del indice y del almacenamiento todos los registros
+        asociados a la clave y retorna los registros eliminados.
 
-        No modifica los registros del almacenamiento ni otros indices.
+        Esta operacin solo sincroniza este indice con su almacenamiento;
+        no sincroniza ni modifica otros indices asociados a la misma tabla.
         """
         pass
+
     # Operaciones generales del indice
 
     @abstractmethod
