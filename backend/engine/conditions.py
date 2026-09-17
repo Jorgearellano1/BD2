@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from catalog import Key, RawRecord, TableMetadata
+from engine.catalog import Key, RawRecord, TableMetadata
 
 
 class ComparisonOperator(Enum):
