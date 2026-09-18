@@ -6,9 +6,12 @@ class TokenType(Enum):
     CREATE = auto()
     TABLE = auto()
     INDEX = auto()
+    ON = auto()
     INSERT = auto()
     INTO = auto()
     VALUES = auto()
+
+    DELETE = auto()
 
     ALTER = auto()
     ADD = auto()

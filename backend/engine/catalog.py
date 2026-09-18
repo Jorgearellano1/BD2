@@ -10,11 +10,6 @@ from engine.metadata import (
     TableEntry,
     TableMetadata,
 )
-from indexes.bplusTree import BPlusTree
-from indexes.index import Index
-from storage.heapFile import HeapFile
-from storage.sequentialFile import SequentialFile
-from storage.storageFile import StorageFile
 
 
 CATALOG_VERSION = 1
@@ -28,17 +23,17 @@ class Catalog:
     (IndexMetadata). El JSON solo guarda metadata logica/de ubicacion:
     nombres, columnas, tipos, primary key, unique, storage, rutas e
     informacion de indices.
+
+    No abre estructuras fisicas; esa responsabilidad corresponde al Executor.
     """
 
     def __init__(
         self,
         catalog_path: str,
         storage_dir: str,
-        page_size: int,
     ) -> None:
         self.catalog_path = catalog_path
         self.storage_dir = storage_dir
-        self.page_size = page_size
 
         self._tables: dict[str, TableEntry] = {}
         self._indexes: dict[str, IndexMetadata] = {}
@@ -291,37 +286,3 @@ class Catalog:
         else:
             filename = f'{table}_{column}.hash'
         return os.path.join(self.storage_dir, filename)
-
-    # Resolucion de estructuras fisicas
-    def open_storage(self, table_name: str) -> StorageFile:
-        """Abre (o crea) la estructura fisica de una tabla."""
-        entry = self.get_table(table_name)
-
-        if entry.storage is StorageKind.HEAP:
-            return HeapFile(entry.metadata, entry.file_path, self.page_size)
-
-        return SequentialFile(entry.metadata, entry.file_path, self.page_size)
-
-    def open_index(self, index_name: str, heap) -> Index:
-        """
-        Abre el indice indicado sobre el almacenamiento compartido dado.
-
-        Solo BTREE esta integrado. HASH ya tiene metadata y ruta, pero
-        permanece pendiente de integracion en el catalogo.
-        """
-        index = self.get_index(index_name)
-
-        if index.kind is not IndexKind.BTREE:
-            raise NotImplementedError(
-                f"Indice {index.kind.value} no implementado: '{index_name}'"
-            )
-
-        entry = self.get_table(index.table)
-
-        return BPlusTree(
-            entry.metadata,
-            index.column,
-            heap,
-            self.page_size,
-            index_path=index.file_path,
-        )

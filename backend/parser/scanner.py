@@ -44,12 +44,16 @@ class Scanner:
                 return Token(TokenType.TABLE, lexema)
             elif upper == "INDEX":
                 return Token(TokenType.INDEX, lexema)
+            elif upper == "ON":
+                return Token(TokenType.ON, lexema)
             elif upper == "INSERT":
                 return Token(TokenType.INSERT, lexema)
             elif upper == "INTO":
                 return Token(TokenType.INTO, lexema)
             elif upper == "VALUES":
                 return Token(TokenType.VALUES, lexema)
+            elif upper == "DELETE":
+                return Token(TokenType.DELETE, lexema)
             elif upper == "ALTER":
                 return Token(TokenType.ALTER, lexema)
             elif upper == "ADD":
