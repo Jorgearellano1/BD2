@@ -3,10 +3,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from engine.catalog import Key, RawRecord, CleanRecord, RID
+from engine.metadata import Key, RawRecord, CleanRecord, RID
 
 if TYPE_CHECKING:
-    from engine.catalog import TableMetadata
+    from engine.metadata import TableMetadata
     from storage.heapFile import HeapFile
 
 

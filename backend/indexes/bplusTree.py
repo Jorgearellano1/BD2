@@ -5,8 +5,8 @@ import os
 import tempfile
 from typing import BinaryIO, Iterable, Iterator, overload
 
-from engine.catalog import PAGE_SIZE, TableMetadata, Column, RawRecord, CleanRecord
-from engine.catalog import RID, RID_FORMAT, RID_SIZE, Key
+from engine.metadata import TableMetadata, Column, RawRecord, CleanRecord
+from engine.metadata import RID, RID_FORMAT, RID_SIZE, Key
 from storage.heapFile import HeapFile
 from algorithms.external_sort import ExternalSort
 from indexes.index import Index
@@ -241,6 +241,7 @@ class BPlusTree(Index):
         table_meta: TableMetadata,
         key_column: str,
         heap: HeapFile,
+        page_size: int,
         data_dir: str = 'data',
         sort_buffer_size: int = 128 * 1024 * 1024,
         level_memory_limit: int = DEFAULT_LEVEL_MEMORY_LIMIT,
@@ -250,7 +251,7 @@ class BPlusTree(Index):
         self.table_meta  = table_meta
         self.key_column  = key_column
         self.data_dir    = data_dir
-        self.PAGE_SIZE   = PAGE_SIZE
+        self.PAGE_SIZE   = page_size
 
         self.sort_buffer_size = sort_buffer_size
         self.level_memory_limit = level_memory_limit
@@ -1450,6 +1451,7 @@ class BPlusTree(Index):
         table_meta: TableMetadata,
         heap: HeapFile,
         key_column: str,
+        page_size: int,
         source_path: str,
         delimiter: str = ',',
         data_dir: str = 'data',
@@ -1469,6 +1471,7 @@ class BPlusTree(Index):
             table_meta,
             heap,
             [key_column],
+            page_size,
             source_path,
             delimiter=delimiter,
             data_dir=data_dir,
@@ -1484,6 +1487,7 @@ class BPlusTree(Index):
         table_meta: TableMetadata,
         heap: HeapFile,
         key_columns: list[str],
+        page_size: int,
         source_path: str,
         delimiter: str = ',',
         data_dir: str = 'data',
@@ -1528,7 +1532,7 @@ class BPlusTree(Index):
 
         indexes = [
             BPlusTree(
-                table_meta, column, heap, data_dir,
+                table_meta, column, heap, page_size, data_dir,
                 sort_buffer_size, level_memory_limit,
             )
             for column in key_columns
@@ -1669,6 +1673,7 @@ class BPlusTree(Index):
         table_meta: TableMetadata,
         heap: HeapFile,
         key_column: str,
+        page_size: int,
         data_dir: str = 'data',
         sort_buffer_size: int = 128 * 1024 * 1024,
         level_memory_limit: int = DEFAULT_LEVEL_MEMORY_LIMIT,
@@ -1682,7 +1687,7 @@ class BPlusTree(Index):
             raise FileExistsError(f"El indice ya existe: {filename}")
 
         index = BPlusTree(
-            table_meta, key_column, heap, data_dir,
+            table_meta, key_column, heap, page_size, data_dir,
             sort_buffer_size, level_memory_limit,
         )
         index._build_from_heap_inplace()

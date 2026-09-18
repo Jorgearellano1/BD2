@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Iterable, Iterator, Optional
 
-from engine.catalog import TableMetadata, RawRecord, CleanRecord, RID, Key
+from engine.metadata import TableMetadata, RawRecord, CleanRecord, RID, Key
 from engine.conditions import Expression, Condition, LogicalExpression, ComparisonOperator, evaluate_expression
 from storage.storageFile import StorageFile
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from engine.catalog import Key, RawRecord, CleanRecord, TableMetadata
+from engine.metadata import Key, RawRecord, CleanRecord, TableMetadata
 from engine.conditions import Expression
 
 
