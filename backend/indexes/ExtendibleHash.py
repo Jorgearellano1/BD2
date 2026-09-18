@@ -1,7 +1,7 @@
 from typing import Optional, List, Tuple, Dict, Any
 
 from storage.heapFile import HeapFile
-from engine.catalog import RID, Key, TableMetadata
+from engine.metadata import RID, Key, TableMetadata
 
 class HashEntry:
 
