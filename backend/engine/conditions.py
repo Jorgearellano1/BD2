@@ -12,7 +12,6 @@ class ComparisonOperator(Enum):
     GT = ">"
     GE = ">="
 
-
 class LogicalOperator(Enum):
     AND = "AND"
     OR = "OR"

@@ -62,8 +62,7 @@ class TableMetadata:
         size  : int  : tamano en bytes
         unique: bool : (opcional) True si la columna tiene UNIQUE
 
-    La primary_key puede ser None (tabla sin PK). Una columna es unica si es
-    la primary_key o si tiene unique=True.
+    Una columna es unica si es la primary_key o si tiene unique=True.
 
     Representa unicamente el esquema y la serializacion logica de los
     registros. No conoce archivos, indices, catalogo ni paginas.
@@ -92,9 +91,9 @@ class TableMetadata:
     @staticmethod
     def _normalize_column(col: Column) -> Column:
         """
-        Completa/valida 'fmt' y 'size' de una columna a partir de su 'type'.
-        Permite construir el esquema tanto desde columnas ya resueltas como
-        desde la representacion logica del catalogo (sin 'fmt').
+        Completa y valida 'fmt' y 'size' de una columna a partir de su 'type'.
+        Permite construir el esquema desde columnas ya resueltas o desde la
+        representacion logica del catalogo (sin 'fmt').
         """
         tipo = col['type'].upper()
         size = col.get('size')
@@ -122,10 +121,7 @@ class TableMetadata:
         return normalized
 
     def to_dict(self) -> dict[str, Any]:
-        """
-        Representacion logica del esquema para el catalogo. No incluye 'fmt'
-        ni 'record_size' porque son derivados.
-        """
+        """Representacion logica del esquema para el catalogo."""
         columns: list[dict[str, Any]] = []
         for col in self.columns:
             column: dict[str, Any] = {

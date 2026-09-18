@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-from typing import TYPE_CHECKING
 
 from engine.metadata import (
     IndexKind,
@@ -11,10 +10,11 @@ from engine.metadata import (
     TableEntry,
     TableMetadata,
 )
-
-if TYPE_CHECKING:
-    from indexes.index import Index
-    from storage.storageFile import StorageFile
+from indexes.bplusTree import BPlusTree
+from indexes.index import Index
+from storage.heapFile import HeapFile
+from storage.sequentialFile import SequentialFile
+from storage.storageFile import StorageFile
 
 
 CATALOG_VERSION = 1
@@ -28,10 +28,6 @@ class Catalog:
     (IndexMetadata). El JSON solo guarda metadata logica/de ubicacion:
     nombres, columnas, tipos, primary key, unique, storage, rutas e
     informacion de indices.
-
-    No guarda registros, RIDs, paginas, nodos, buckets ni el contenido de
-    las estructuras fisicas, que siguen siendo responsabilidad de cada
-    archivo. El page_size es configuracion externa y no se persiste.
     """
 
     def __init__(
@@ -47,16 +43,19 @@ class Catalog:
         self._tables: dict[str, TableEntry] = {}
         self._indexes: dict[str, IndexMetadata] = {}
 
+        # Auxiliares en memoria (no se persisten en catalog.json).
+        self._index_targets: dict[tuple[str, str, IndexKind], str] = {}
+        self._table_indexes: dict[str, set[str]] = {}
+
         self.load()
 
-    # ------------------------------------------------------------------
     # Persistencia
-    # ------------------------------------------------------------------
-
     def load(self) -> None:
         """Carga el catalogo desde disco. Si no existe, empieza vacio."""
         self._tables = {}
         self._indexes = {}
+        self._index_targets = {}
+        self._table_indexes = {}
 
         if not os.path.exists(self.catalog_path):
             return
@@ -80,13 +79,26 @@ class Catalog:
             )
 
         for name, raw in data.get('indexes', {}).items():
-            self._indexes[name] = IndexMetadata(
+            index = IndexMetadata(
                 name=name,
                 table=raw['table'],
                 column=raw['column'],
                 kind=IndexKind(raw['type']),
                 file_path=raw['file'],
             )
+
+            target = (index.table, index.column, index.kind)
+            existing = self._index_targets.get(target)
+            if existing is not None:
+                raise ValueError(
+                    f"Catalogo inconsistente: '{name}' y '{existing}' son "
+                    f"indices {index.kind.value} sobre "
+                    f"'{index.table}({index.column})'"
+                )
+
+            self._indexes[name] = index
+            self._index_targets[target] = name
+            self._table_indexes.setdefault(index.table, set()).add(name)
 
     def save(self) -> None:
         """Guarda el catalogo en disco de forma atomica."""
@@ -120,10 +132,7 @@ class Catalog:
             json.dump(data, f, indent=2, ensure_ascii=False)
         os.replace(tmp_path, self.catalog_path)
 
-    # ------------------------------------------------------------------
     # Tablas
-    # ------------------------------------------------------------------
-
     def table_exists(self, name: str) -> bool:
         return name in self._tables
 
@@ -146,19 +155,17 @@ class Catalog:
         del self._tables[name]
 
         # Un indice no puede sobrevivir a su tabla.
-        for index_name in [
-            index_name
-            for index_name, idx in self._indexes.items()
-            if idx.table == name
-        ]:
-            del self._indexes[index_name]
+        for index_name in self._table_indexes.pop(name, set()):
+            index = self._indexes.pop(index_name, None)
+            if index is None:
+                continue
+            target = (index.table, index.column, index.kind)
+            if self._index_targets.get(target) == index_name:
+                del self._index_targets[target]
 
         self.save()
 
-    # ------------------------------------------------------------------
     # Indices
-    # ------------------------------------------------------------------
-
     def index_exists(self, name: str) -> bool:
         return name in self._indexes
 
@@ -172,26 +179,99 @@ class Catalog:
             raise ValueError(
                 f"El indice '{index.name}' ya existe en el catalogo"
             )
+
+        target = (index.table, index.column, index.kind)
+        existing = self._index_targets.get(target)
+        if existing is not None:
+            raise ValueError(
+                f"Ya existe un indice {index.kind.value} sobre "
+                f"'{index.table}({index.column})': '{existing}'"
+            )
+
         self._indexes[index.name] = index
+        self._index_targets[target] = index.name
+        self._table_indexes.setdefault(index.table, set()).add(index.name)
         self.save()
 
     def remove_index(self, name: str) -> None:
         if name not in self._indexes:
             raise ValueError(f"El indice '{name}' no existe en el catalogo")
-        del self._indexes[name]
+
+        index = self._indexes.pop(name)
+
+        target = (index.table, index.column, index.kind)
+        if self._index_targets.get(target) == name:
+            del self._index_targets[target]
+
+        names = self._table_indexes.get(index.table)
+        if names is not None:
+            names.discard(name)
+            if not names:
+                del self._table_indexes[index.table]
+
         self.save()
 
     def get_table_indexes(self, table_name: str) -> list[IndexMetadata]:
-        return [
-            index
-            for index in self._indexes.values()
-            if index.table == table_name
-        ]
+        names = self._table_indexes.get(table_name)
+        if not names:
+            return []
+        return [self._indexes[name] for name in sorted(names)]
 
-    # ------------------------------------------------------------------
+    def find_index(
+        self,
+        table: str,
+        column: str,
+        kind: IndexKind,
+    ) -> IndexMetadata | None:
+        """
+        Busca un indice compatible por (table, column, kind) en O(1).
+        No decide reutilizacion; solo informa.
+        """
+        name = self._index_targets.get((table, column, kind))
+        if name is None:
+            return None
+        return self._indexes[name]
+
+    def rename_index(self, old_name: str, new_name: str) -> None:
+        """
+        Cambia solo el nombre logico de un indice conservando table, column,
+        kind y file_path. No toca archivos fisicos ni recalcula file_path.
+        """
+        if old_name == new_name:
+            return
+
+        if old_name not in self._indexes:
+            raise ValueError(
+                f"El indice '{old_name}' no existe en el catalogo"
+            )
+
+        if new_name in self._indexes:
+            raise ValueError(
+                f"El indice '{new_name}' ya existe en el catalogo"
+            )
+
+        index = self._indexes[old_name]
+        renamed = IndexMetadata(
+            name=new_name,
+            table=index.table,
+            column=index.column,
+            kind=index.kind,
+            file_path=index.file_path,
+        )
+
+        del self._indexes[old_name]
+        self._indexes[new_name] = renamed
+
+        target = (index.table, index.column, index.kind)
+        self._index_targets[target] = new_name
+
+        names = self._table_indexes.setdefault(index.table, set())
+        names.discard(old_name)
+        names.add(new_name)
+
+        self.save()
+
     # Rutas fisicas canonicas
-    # ------------------------------------------------------------------
-
     def table_path(self, name: str, storage: StorageKind) -> str:
         extension = '.heap' if storage is StorageKind.HEAP else '.seq'
         return os.path.join(self.storage_dir, name + extension)
@@ -202,31 +282,33 @@ class Catalog:
         column: str,
         kind: IndexKind,
     ) -> str:
+        """
+        Ruta canonica de un indice. BTREE -> .dat, HASH -> .hash.
+        HASH queda contemplado aunque su integracion este pendiente.
+        """
         if kind is IndexKind.BTREE:
             filename = f'{table}_{column}_bplustree.dat'
         else:
             filename = f'{table}_{column}.hash'
         return os.path.join(self.storage_dir, filename)
 
-    # ------------------------------------------------------------------
     # Resolucion de estructuras fisicas
-    # ------------------------------------------------------------------
-
     def open_storage(self, table_name: str) -> StorageFile:
         """Abre (o crea) la estructura fisica de una tabla."""
         entry = self.get_table(table_name)
 
         if entry.storage is StorageKind.HEAP:
-            from storage.heapFile import HeapFile
-
             return HeapFile(entry.metadata, entry.file_path, self.page_size)
-
-        from storage.sequentialFile import SequentialFile
 
         return SequentialFile(entry.metadata, entry.file_path, self.page_size)
 
     def open_index(self, index_name: str, heap) -> Index:
-        """Abre el indice indicado sobre el almacenamiento compartido dado."""
+        """
+        Abre el indice indicado sobre el almacenamiento compartido dado.
+
+        Solo BTREE esta integrado. HASH ya tiene metadata y ruta, pero
+        permanece pendiente de integracion en el catalogo.
+        """
         index = self.get_index(index_name)
 
         if index.kind is not IndexKind.BTREE:
@@ -235,14 +317,11 @@ class Catalog:
             )
 
         entry = self.get_table(index.table)
-        data_dir = os.path.dirname(index.file_path) or self.storage_dir
-
-        from indexes.bplusTree import BPlusTree
 
         return BPlusTree(
             entry.metadata,
             index.column,
             heap,
             self.page_size,
-            data_dir=data_dir,
+            index_path=index.file_path,
         )

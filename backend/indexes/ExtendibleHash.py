@@ -1,3 +1,4 @@
+from engine.metadata import CleanRecord
 from typing import Optional, List, Tuple, Dict, Any
 
 from storage.heapFile import HeapFile

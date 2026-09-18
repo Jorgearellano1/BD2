@@ -200,7 +200,7 @@ class BPlusTree(Index):
         table_meta      : TableMetadata con el esquema del registro
         key_column      : nombre de la columna clave (INT o CHAR)
         heap            : HeapFile compartido donde viven los registros
-        data_dir        : directorio donde se guarda el archivo .dat del indice
+        index_path      : ruta completa del archivo del indice
         sort_buffer_size: bytes de RAM disponibles para ExternalSort
     """
 
@@ -223,18 +223,10 @@ class BPlusTree(Index):
     LEAF_ORDER: int
     INTERNAL_ORDER: int
     filename: str
-    heap_path: str
     heap: HeapFile
     file: BinaryIO | None
     root: int
     is_unique: bool
-
-    @staticmethod
-    def _index_filename(table_meta: TableMetadata, key_column: str, data_dir: str) -> str:
-        """Ruta canonica del archivo de indice para (tabla, columna, data_dir)."""
-        return os.path.join(
-            data_dir, f"{table_meta.name}_{key_column}_bplustree.dat"
-        )
 
     def __init__(
         self,
@@ -242,7 +234,7 @@ class BPlusTree(Index):
         key_column: str,
         heap: HeapFile,
         page_size: int,
-        data_dir: str = 'data',
+        index_path: str,
         sort_buffer_size: int = 128 * 1024 * 1024,
         level_memory_limit: int = DEFAULT_LEVEL_MEMORY_LIMIT,
     ) -> None:
@@ -250,7 +242,8 @@ class BPlusTree(Index):
 
         self.table_meta  = table_meta
         self.key_column  = key_column
-        self.data_dir    = data_dir
+        self.filename    = index_path
+        self.data_dir    = os.path.dirname(index_path) or '.'
         self.PAGE_SIZE   = page_size
 
         self.sort_buffer_size = sort_buffer_size
@@ -286,12 +279,6 @@ class BPlusTree(Index):
             raise ValueError(
                 "Capacidad demasiado pequena para PAGE_SIZE y tipo de clave dados"
             )
-
-        # Rutas de archivos
-        self.filename  = self._index_filename(
-            self.table_meta, self.key_column, self.data_dir
-        )
-        self.heap_path = heap.filepath
 
         # HeapFile compartido: el B+ Tree no lo crea ni lo cierra
         self.heap = heap
@@ -1453,8 +1440,8 @@ class BPlusTree(Index):
         key_column: str,
         page_size: int,
         source_path: str,
+        index_path: str,
         delimiter: str = ',',
-        data_dir: str = 'data',
         sort_buffer_size: int = 128 * 1024 * 1024,
         level_memory_limit: int = DEFAULT_LEVEL_MEMORY_LIMIT,
     ) -> BPlusTree:
@@ -1473,8 +1460,8 @@ class BPlusTree(Index):
             [key_column],
             page_size,
             source_path,
+            [index_path],
             delimiter=delimiter,
-            data_dir=data_dir,
             sort_buffer_size=sort_buffer_size,
             level_memory_limit=level_memory_limit,
         )
@@ -1489,8 +1476,8 @@ class BPlusTree(Index):
         key_columns: list[str],
         page_size: int,
         source_path: str,
+        index_paths: list[str],
         delimiter: str = ',',
-        data_dir: str = 'data',
         sort_buffer_size: int = 128 * 1024 * 1024,
         level_memory_limit: int = DEFAULT_LEVEL_MEMORY_LIMIT,
     ) -> list[BPlusTree]:
@@ -1515,6 +1502,12 @@ class BPlusTree(Index):
             raise ValueError("key_columns no puede estar vacio")
         if len(set(key_columns)) != len(key_columns):
             raise ValueError("key_columns contiene columnas repetidas")
+        if len(index_paths) != len(key_columns):
+            raise ValueError(
+                "index_paths debe tener una ruta por cada key_column"
+            )
+        if len(set(index_paths)) != len(index_paths):
+            raise ValueError("index_paths contiene rutas repetidas")
 
         for column in key_columns:
             table_meta.col_index(column)
@@ -1525,26 +1518,25 @@ class BPlusTree(Index):
             )
 
         # CREATE: ningun indice destino debe existir (no se abre ni modifica)
-        for column in key_columns:
-            filename = BPlusTree._index_filename(table_meta, column, data_dir)
-            if os.path.exists(filename):
-                raise FileExistsError(f"El indice ya existe: {filename}")
+        for path in index_paths:
+            if os.path.exists(path):
+                raise FileExistsError(f"El indice ya existe: {path}")
 
         indexes = [
             BPlusTree(
-                table_meta, column, heap, page_size, data_dir,
+                table_meta, column, heap, page_size, path,
                 sort_buffer_size, level_memory_limit,
             )
-            for column in key_columns
+            for column, path in zip(key_columns, index_paths)
         ]
 
         temp_unsorted = [
-            os.path.join(data_dir, f'tmp_unsorted_{column}.idx')
-            for column in key_columns
+            os.path.join(index.data_dir, f'tmp_unsorted_{index.key_column}.idx')
+            for index in indexes
         ]
         temp_sorted = [
-            os.path.join(data_dir, f'tmp_sorted_{column}.idx')
-            for column in key_columns
+            os.path.join(index.data_dir, f'tmp_sorted_{index.key_column}.idx')
+            for index in indexes
         ]
 
         built = 0
@@ -1604,7 +1596,7 @@ class BPlusTree(Index):
                     # Ordenar las entradas
                     self._external_sort_index(temp_unsorted, temp_sorted)
 
-                # Recien ahora se toca el archivo del indice
+                # El archivo del indice se toca solo tras generar y ordenar
                 self._reset_tree_file()
                 if total_entries == 0:
                     self._init_empty_tree()
@@ -1674,7 +1666,7 @@ class BPlusTree(Index):
         heap: HeapFile,
         key_column: str,
         page_size: int,
-        data_dir: str = 'data',
+        index_path: str,
         sort_buffer_size: int = 128 * 1024 * 1024,
         level_memory_limit: int = DEFAULT_LEVEL_MEMORY_LIMIT,
     ) -> BPlusTree:
@@ -1682,12 +1674,11 @@ class BPlusTree(Index):
         Crea un indice B+ Tree nuevo a partir de los registros activos del
         HeapFile. Falla si el archivo del indice ya existe, sin modificarlo.
         """
-        filename = BPlusTree._index_filename(table_meta, key_column, data_dir)
-        if os.path.exists(filename):
-            raise FileExistsError(f"El indice ya existe: {filename}")
+        if os.path.exists(index_path):
+            raise FileExistsError(f"El indice ya existe: {index_path}")
 
         index = BPlusTree(
-            table_meta, key_column, heap, page_size, data_dir,
+            table_meta, key_column, heap, page_size, index_path,
             sort_buffer_size, level_memory_limit,
         )
         index._build_from_heap_inplace()
@@ -1913,11 +1904,10 @@ class BPlusTree(Index):
     ) -> Iterator[int]:
         """
         Genera (sin materializar listas) cuantos hijos recibe cada nodo de un
-        nivel, con exactamente la misma distribucion que la version anterior:
-        los primeros (num_nodes - 2) nodos van llenos a max_children y los dos
-        ultimos se reparten el resto en partes (casi) iguales, de modo que
-        ambos cumplen [min_children, max_children]. Un unico nodo se devuelve
-        tal cual (sera la raiz, con regla especial).
+        nivel. Los primeros (num_nodes - 2) nodos van llenos a max_children y
+        los dos ultimos se reparten el resto en partes (casi) iguales, de modo
+        que ambos cumplen [min_children, max_children]. Un unico nodo se
+        devuelve tal cual (sera la raiz, con regla especial).
         """
         if node_count <= max_children:
             yield node_count

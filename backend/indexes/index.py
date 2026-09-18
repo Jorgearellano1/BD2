@@ -93,10 +93,10 @@ class Index(ABC):
         table_meta: TableMetadata,
         heap: HeapFile,
         key_column: str,
+        page_size: int,
         source_path: str,
-        delimiter: str = ',',
-        data_dir: str = 'data',
-        sort_buffer_size: int = 128 * 1024 * 1024
+        index_path: str,
+        delimiter: str = ','
     ) -> Index:
         """
         Crea un indice nuevo cargando el origen en el almacenamiento recibido
@@ -110,8 +110,8 @@ class Index(ABC):
         table_meta: TableMetadata,
         heap: HeapFile,
         key_column: str,
-        data_dir: str = 'data',
-        sort_buffer_size: int = 128 * 1024 * 1024
+        page_size: int,
+        index_path: str
     ) -> Index:
         """Crea un indice nuevo a partir de los registros del almacenamiento."""
         pass
