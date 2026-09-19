@@ -1004,15 +1004,12 @@ class BPlusTree(Index):
         try:
             rids = self.delete_all(key)
 
-            removed: list[CleanRecord] = []
-            for rid in rids:
-                raw = self.heap.remove(rid)
-                if raw is None:
-                    continue
-                cleaned = self.table_meta.clean_tuple(raw)
-                if cleaned is not None:
-                    removed.append(cleaned)
-            return removed
+            raws = self.heap.remove_many(rids)
+            return [
+                cleaned
+                for cleaned in (self.table_meta.clean_tuple(raw) for raw in raws)
+                if cleaned is not None
+            ]
         finally:
             self._accumulate_storage_stats(before)
 

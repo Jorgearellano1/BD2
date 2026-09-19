@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Iterable, Iterator, Optional
 
 from engine.metadata import TableMetadata, RawRecord, CleanRecord, RID, Key
-from engine.conditions import Expression, Condition, LogicalExpression, ComparisonOperator, evaluate_expression
+from engine.conditions import Expression, Condition, LogicalExpression, ComparisonOperator, ColumnRef, LiteralValue, evaluate_expression
 from storage.storageFile import StorageFile
 
 
@@ -749,10 +749,17 @@ class SequentialFile(StorageFile):
     def _matching(self, expression: Expression) -> Iterator[_Record]:
         self._ensure_open()
         expression = self._normalize_expression(expression)
+        column = None
+        literal = None
         if (isinstance(expression, Condition)
-                and expression.column == self.key_column
                 and expression.operator == ComparisonOperator.EQ):
-            value = self._normalized_key(self.key_column, expression.value)
+            left, right = expression.left, expression.right
+            if isinstance(left, ColumnRef) and isinstance(right, LiteralValue):
+                column, literal = left.name, right.value
+            elif isinstance(left, LiteralValue) and isinstance(right, ColumnRef):
+                column, literal = right.name, left.value
+        if column == self.key_column:
+            value = self._normalized_key(self.key_column, literal)
             records = self._pages.iter_records((value, -1), (value, 2 ** 63 - 1))
         else:
             records = self._pages.iter_records()
@@ -762,8 +769,12 @@ class SequentialFile(StorageFile):
 
     def _normalize_expression(self, expression: Expression) -> Expression:
         if isinstance(expression, Condition):
-            return Condition(expression.column, expression.operator,
-                             self._normalized_key(expression.column, expression.value))
+            left, right = expression.left, expression.right
+            if isinstance(left, ColumnRef) and isinstance(right, LiteralValue):
+                right = LiteralValue(self._normalized_key(left.name, right.value))
+            elif isinstance(left, LiteralValue) and isinstance(right, ColumnRef):
+                left = LiteralValue(self._normalized_key(right.name, left.value))
+            return Condition(left, expression.operator, right)
         if isinstance(expression, LogicalExpression):
             return LogicalExpression(expression.operator,
                                      tuple(self._normalize_expression(operand)
@@ -775,8 +786,8 @@ class SequentialFile(StorageFile):
         raw = self._normalize(record)
         for col in self.table_meta.columns:
             if self.table_meta.is_unique_column(col['name']):
-                expression = Condition(col['name'], ComparisonOperator.EQ,
-                                       raw[self.table_meta.col_index(col['name'])])
+                expression = Condition(ColumnRef(col['name']), ComparisonOperator.EQ,
+                                       LiteralValue(raw[self.table_meta.col_index(col['name'])]))
                 if next(self._matching(expression), None) is not None:
                     raise ValueError(f"Clave duplicada: {col['name']}")
         item = self._new_record(raw)

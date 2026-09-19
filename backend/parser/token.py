@@ -22,6 +22,7 @@ class TokenType(Enum):
     WHERE = auto()
 
     FORCE = auto()
+    SEQSCAN = auto()
     USING = auto()
 
     HEAP = auto()

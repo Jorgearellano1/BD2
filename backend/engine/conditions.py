@@ -19,17 +19,32 @@ class LogicalOperator(Enum):
 
 
 @dataclass(frozen=True)
-class Condition:
-    """Condición basica de comparación sobre una columna."""
-    column: str
-    operator: ComparisonOperator
+class ColumnRef:
+    """Operando que referencia una columna del registro."""
+    name: str
+
+
+@dataclass(frozen=True)
+class LiteralValue:
+    """Operando que representa un valor literal."""
     value: Key
+
+
+Operand = ColumnRef | LiteralValue
+
+
+@dataclass(frozen=True)
+class Condition:
+    """Comparacion entre dos operandos (columna o literal)."""
+    left: Operand
+    operator: ComparisonOperator
+    right: Operand
 
 
 @dataclass(frozen=True)
 class LogicalExpression:
     """
-    Expresión logica que combina una o más expresiones.
+    Expresion logica que combina una o mas expresiones.
 
     AND y OR requieren dos operandos.
     NOT requiere un solo operando.
@@ -41,6 +56,28 @@ class LogicalExpression:
 Expression = Condition | LogicalExpression
 
 
+def _resolve_operand(
+    record: RawRecord,
+    operand: Operand,
+    table_meta: TableMetadata,
+    other: Operand
+) -> int | float | bytes | str:
+    """
+    Resuelve un operando contra el registro. Las columnas se leen del record;
+    los literales se normalizan segun la columna del otro operando cuando esta
+    disponible.
+    """
+    if isinstance(operand, ColumnRef):
+        return record[table_meta.col_index(operand.name)]
+
+    if isinstance(operand, LiteralValue):
+        if isinstance(other, ColumnRef):
+            return table_meta.normalize_value(other.name, operand.value)
+        return operand.value
+
+    raise TypeError(f"Operando no soportado: {type(operand)!r}")
+
+
 def evaluate_condition(
     record: RawRecord,
     condition: Condition,
@@ -49,24 +86,23 @@ def evaluate_condition(
     """
     Evalua una condicion basica sobre un registro.
     """
-    col_idx = table_meta.col_index(condition.column)
-    actual  = record[col_idx]
-    target  = table_meta.normalize_value(condition.column, condition.value)
+    left  = _resolve_operand(record, condition.left, table_meta, condition.right)
+    right = _resolve_operand(record, condition.right, table_meta, condition.left)
 
     op = condition.operator
 
     if op == ComparisonOperator.EQ:
-        return actual == target
+        return left == right
     if op == ComparisonOperator.NE:
-        return actual != target
+        return left != right
     if op == ComparisonOperator.LT:
-        return actual < target
+        return left < right
     if op == ComparisonOperator.LE:
-        return actual <= target
+        return left <= right
     if op == ComparisonOperator.GT:
-        return actual > target
+        return left > right
     if op == ComparisonOperator.GE:
-        return actual >= target
+        return left >= right
 
     raise ValueError(f"Operador de comparacion no soportado: {op!r}")
 
@@ -77,7 +113,7 @@ def evaluate_expression(
     table_meta: TableMetadata
 ) -> bool:
     """
-    Evalua una expresión logica o una condicion sobre un registro.
+    Evalua una expresion logica o una condicion sobre un registro.
     """
     if isinstance(expression, Condition):
         return evaluate_condition(record, expression, table_meta)

@@ -162,6 +162,16 @@ class SemanticVisitor(Visitor[None]):
 
             self._check_column_type(column)
 
+            if (
+                storage is StorageKind.SEQUENTIAL
+                and column.unique
+                and not column.primary_key
+            ):
+                raise ValueError(
+                    f"Error semantico: la tabla SEQUENTIAL '{node.name}' no "
+                    f"admite restricciones UNIQUE en columnas"
+                )
+
         if primary_key_count > 1:
             raise ValueError(
                 f"Error semantico: la tabla '{node.name}' tiene mas de una "
@@ -259,6 +269,12 @@ class SemanticVisitor(Visitor[None]):
         if not self._table_exists(node.table):
             raise ValueError(
                 f"Error semantico: la tabla '{node.table}' no existe"
+            )
+
+        if self._get_table_storage(node.table) is StorageKind.SEQUENTIAL:
+            raise ValueError(
+                f"Error semantico: la tabla SEQUENTIAL '{node.table}' no "
+                f"admite restricciones UNIQUE"
             )
 
         metadata = self._get_table_meta(node.table)

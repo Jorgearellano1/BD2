@@ -8,6 +8,7 @@ from collections import defaultdict
 from typing import BinaryIO, Iterable, Iterator
 
 from engine.metadata import TableMetadata, RawRecord, RID, Key, CleanRecord
+from engine.bitmap import Bitmap
 from engine.conditions import Expression, evaluate_expression
 from storageFile import StorageFile
 
@@ -183,12 +184,7 @@ class HeapFile(StorageFile):
             if evaluate_expression(record, expression, self.table_meta):
                 rids.append(rid)
 
-        removed: list[RawRecord] = []
-        for rid in rids:
-            deleted = self.remove(rid)
-            if deleted is not None:
-                removed.append(deleted)
-        return removed
+        return self.remove_many(rids)
 
     #header
     def _read_header(self) -> tuple[int, int, int]:
@@ -395,7 +391,181 @@ class HeapFile(StorageFile):
                 record = struct.unpack(self.table_meta.struct_format, payload)
                 results[position] = record
         return [r for r in results if r is not None]
-    
+
+    @staticmethod
+    def _mask_to_slots(mask: int) -> Iterator[int]:
+        """Genera los indices de slot marcados en una mascara de bits."""
+        current = mask
+        while current:
+            lsb = current & -current
+            yield lsb.bit_length() - 1
+            current ^= lsb
+
+    def read_bitmap(self, bitmap: Bitmap) -> list[RawRecord]:
+        """
+        Lee los slots marcados en el bitmap, como maximo una lectura por
+        pagina. Ignora slots invalidos o ya eliminados.
+        """
+        if not bitmap.pages:
+            return []
+
+        f = self.file
+        f.seek(0)
+        _, total_pages, _ = struct.unpack(
+            self.FILE_HEADER_FORMAT, f.read(self.FILE_HEADER_SIZE)
+        )
+
+        results: list[RawRecord] = []
+
+        for page_id, mask in bitmap.pages.items():
+            if not 0 <= page_id < total_pages:
+                continue
+
+            f.seek(self._page_offset(page_id))
+            page_data = f.read(self.PAGE_SIZE)
+            self.page_reads += 1
+
+            if len(page_data) < self.PAGE_HEADER_SIZE:
+                continue
+
+            num_records = struct.unpack(
+                self.PAGE_HEADER_FORMAT, page_data[:self.PAGE_HEADER_SIZE]
+            )[0]
+
+            for slot_id in self._mask_to_slots(mask):
+                if slot_id >= num_records:
+                    continue
+
+                local = self._record_offset_in_page(slot_id)
+                raw = page_data[local:local + self.RECORD_SIZE]
+
+                next_free, = struct.unpack(
+                    self.RECORD_META_FORMAT, raw[:self.RECORD_META_SIZE]
+                )
+                if next_free != -1:
+                    continue
+
+                payload = raw[self.RECORD_META_SIZE:]
+                results.append(
+                    struct.unpack(self.table_meta.struct_format, payload)
+                )
+
+        return results
+
+    def _remove_page_slots(
+        self,
+        page_id: int,
+        slots: Iterable[int],
+        free_head: int,
+        total_records: int,
+    ) -> tuple[list[RawRecord], int, int]:
+        """
+        Elimina slots de una pagina leyendola y escribiendola una sola vez.
+        Ignora slots invalidos o ya eliminados. Devuelve los registros
+        eliminados junto al free_head y total_records actualizados.
+        """
+        removed: list[RawRecord] = []
+
+        f = self.file
+        f.seek(self._page_offset(page_id))
+        page_data = bytearray(f.read(self.PAGE_SIZE))
+        self.page_reads += 1
+
+        if len(page_data) < self.PAGE_HEADER_SIZE:
+            return removed, free_head, total_records
+
+        num_records = struct.unpack(
+            self.PAGE_HEADER_FORMAT, page_data[:self.PAGE_HEADER_SIZE]
+        )[0]
+
+        changed = False
+
+        for slot_id in slots:
+            if slot_id < 0 or slot_id >= num_records:
+                continue
+
+            local = self._record_offset_in_page(slot_id)
+            raw = page_data[local:local + self.RECORD_SIZE]
+
+            next_free, = struct.unpack(
+                self.RECORD_META_FORMAT, raw[:self.RECORD_META_SIZE]
+            )
+            if next_free != -1:
+                continue
+
+            payload = raw[self.RECORD_META_SIZE:]
+            removed.append(struct.unpack(self.table_meta.struct_format, payload))
+
+            new_next = free_head if free_head != -1 else -2
+            page_data[local:local + self.RECORD_META_SIZE] = struct.pack(
+                self.RECORD_META_FORMAT, new_next
+            )
+            free_head = self._page_offset(page_id) + local
+            total_records -= 1
+            changed = True
+
+        if changed:
+            self._write_page_raw(f, page_id, page_data, num_records)
+
+        return removed, free_head, total_records
+
+    def remove_many(self, rids: list[RID]) -> list[RawRecord]:
+        """
+        Elimina varios registros agrupados por pagina: una lectura y, si hay
+        cambios, una escritura por pagina. El header se actualiza una vez.
+        """
+        if not rids:
+            return []
+
+        f = self.file
+        f.seek(0)
+        free_head, total_pages, total_records = struct.unpack(
+            self.FILE_HEADER_FORMAT, f.read(self.FILE_HEADER_SIZE)
+        )
+
+        pages: dict[int, list[int]] = defaultdict(list)
+        for page_id, slot_id in rids:
+            if 0 <= page_id < total_pages:
+                pages[page_id].append(slot_id)
+
+        removed: list[RawRecord] = []
+        for page_id, slots in pages.items():
+            page_removed, free_head, total_records = self._remove_page_slots(
+                page_id, slots, free_head, total_records
+            )
+            removed.extend(page_removed)
+
+        self._write_header(free_head, total_pages, total_records)
+        return removed
+
+    def remove_bitmap(self, bitmap: Bitmap) -> list[RawRecord]:
+        """
+        Elimina los slots marcados en el bitmap, procesando por pagina
+        (una lectura y, si hay cambios, una escritura por pagina) y
+        actualizando el header una sola vez.
+        """
+        if not bitmap.pages:
+            return []
+
+        f = self.file
+        f.seek(0)
+        free_head, total_pages, total_records = struct.unpack(
+            self.FILE_HEADER_FORMAT, f.read(self.FILE_HEADER_SIZE)
+        )
+
+        removed: list[RawRecord] = []
+        for page_id, mask in bitmap.pages.items():
+            if not 0 <= page_id < total_pages:
+                continue
+
+            page_removed, free_head, total_records = self._remove_page_slots(
+                page_id, self._mask_to_slots(mask), free_head, total_records
+            )
+            removed.extend(page_removed)
+
+        self._write_header(free_head, total_pages, total_records)
+        return removed
+
 
     def _bulk_insert(
         self,

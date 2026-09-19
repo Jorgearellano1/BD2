@@ -80,7 +80,7 @@ AlterStmtRest ::= TABLE ID
 
 SelectStmtRest ::= SelectList
                    FROM ID
-                   [ ForceIndexClause ]
+                   [ ForceClause ]
                    [ WhereClause ]
                    ";"
 
@@ -90,7 +90,10 @@ SelectList ::= "*"
 ColumnList ::= ID { "," ID }
 
 
-ForceIndexClause ::= FORCE INDEX "(" IndexList ")"
+ForceClause ::= FORCE ForceClauseRest
+
+ForceClauseRest ::= INDEX "(" IndexList ")"
+                  | SEQSCAN
 
 IndexList ::= ID { "," ID }
 

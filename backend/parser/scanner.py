@@ -68,6 +68,8 @@ class Scanner:
                 return Token(TokenType.WHERE, lexema)
             elif upper == "FORCE":
                 return Token(TokenType.FORCE, lexema)
+            elif upper == "SEQSCAN":
+                return Token(TokenType.SEQSCAN, lexema)
             elif upper == "USING":
                 return Token(TokenType.USING, lexema)
             elif upper == "HEAP":

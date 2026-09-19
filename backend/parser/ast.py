@@ -160,6 +160,7 @@ class SelectStm(Stm):
     columns: list[str] | None
     table: str
     force_indexes: list[str] | None = None
+    force_seqscan: bool = False
     where: Exp | None = None
 
     def accept(self, visitor: Visitor[T]) -> T:

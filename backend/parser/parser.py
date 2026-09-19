@@ -394,8 +394,9 @@ class Parser:
         table = self.match(TokenType.ID).text
 
         force_indexes = None
+        force_seqscan = False
         if self.check(TokenType.FORCE):
-            force_indexes = self.parse_force_index_clause()
+            force_indexes, force_seqscan = self.parse_force_clause()
 
         where = None
         if self.check(TokenType.WHERE):
@@ -407,6 +408,7 @@ class Parser:
             columns=columns,
             table=table,
             force_indexes=force_indexes,
+            force_seqscan=force_seqscan,
             where=where
         )
 
@@ -428,8 +430,13 @@ class Parser:
 
         return columns
 
-    def parse_force_index_clause(self) -> list[str]:
+    def parse_force_clause(self) -> tuple[list[str] | None, bool]:
         self.match(TokenType.FORCE)
+
+        if self.check(TokenType.SEQSCAN):
+            self.match(TokenType.SEQSCAN)
+            return None, True
+
         self.match(TokenType.INDEX)
         self.match(TokenType.LPAREN)
 
@@ -437,7 +444,7 @@ class Parser:
 
         self.match(TokenType.RPAREN)
 
-        return indexes
+        return indexes, False
 
     def parse_index_list(self) -> list[str]:
         indexes: list[str] = []
