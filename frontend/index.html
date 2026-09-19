@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BD2 · Cliente SQL</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <h1>BD2 - Cliente SQL</h1>
+  </header>
+  <main class="workspace">
+    <aside class="panel explorer" aria-labelledby="tables-heading">
+      <div class="panel-header"><h2 id="tables-heading">Tablas</h2><button class="text-button" id="refresh" type="button">Actualizar</button></div>
+      <div class="table-list" id="table-list" aria-busy="true"><p class="empty">Cargando tablas…</p></div>
+      <div class="schema" id="schema" hidden></div>
+      <div class="explorer-footer"><button id="reorganize" type="button" disabled>Reorganizar Sequential</button></div>
+    </aside>
+    <section class="panel editor-panel" aria-labelledby="editor-heading">
+      <div class="panel-header"><h2 id="editor-heading">Editor SQL</h2></div>
+      <div class="editor-shell">
+        <pre id="highlight" aria-hidden="true"><code></code></pre>
+        <textarea id="sql" aria-label="Consulta SQL" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off">SELECT * FROM estudiantes
+WHERE Student_ID &gt;= 100 AND Student_ID &lt;= 150;</textarea>
+      </div>
+      <div class="editor-footer"><span id="query-state" role="status"></span><button class="primary" id="execute" type="button">Ejecutar</button></div>
+    </section>
+    <section class="panel results-panel" aria-labelledby="results-heading">
+      <div class="panel-header"><h2 id="results-heading">Resultados</h2><span class="record-count" id="record-count">—</span></div>
+      <div class="result-message" id="result-message" role="status" hidden></div>
+      <div class="result-area" id="result-area"></div>
+      <div class="pagination"><span id="page-info">Sin resultados</span><div><button id="previous" type="button" disabled>Anterior</button><button id="next" type="button" disabled>Siguiente</button></div></div>
+    </section>
+    <section class="panel metrics-panel" aria-labelledby="metrics-heading">
+      <div class="panel-header"><h2 id="metrics-heading">Plan y métricas</h2></div>
+      <div class="metrics-content">
+        <div class="plan-block"><span class="field-label">Ruta de acceso</span><strong id="plan">—</strong><span id="plan-detail"></span></div>
+        <dl class="metrics"><div><dt>Lecturas de disco</dt><dd id="reads">—</dd></div><div><dt>Escrituras de disco</dt><dd id="writes">—</dd></div><div><dt>Tiempo de parseo</dt><dd id="parse-time">—</dd></div><div><dt>Tiempo de ejecución</dt><dd id="execution-time">—</dd></div></dl>
+        <figure class="io-chart" aria-label="Comparación de bloques leídos y escritos"><figcaption>Transferencias de bloques</figcaption><div class="bar-row"><span>Lecturas</span><div class="bar-track"><div class="bar" id="reads-bar"></div></div></div><div class="bar-row"><span>Escrituras</span><div class="bar-track"><div class="bar secondary" id="writes-bar"></div></div></div></figure>
+        <p class="page-size" id="page-size"></p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
