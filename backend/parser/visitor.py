@@ -16,51 +16,52 @@ from ast import (
 )
 
 
-T = TypeVar("T")
+S = TypeVar("S")
+E = TypeVar("E")
 
 
-class Visitor(ABC, Generic[T]):
+class Visitor(ABC, Generic[S, E]):
 
     @abstractmethod
-    def visit_program(self, node: Program) -> T:
+    def visit_program(self, node: Program) -> S:
         pass
 
     @abstractmethod
-    def visit_create_table(self, node: CreateTableStm) -> T:
+    def visit_create_table(self, node: CreateTableStm) -> S:
         pass
 
     @abstractmethod
-    def visit_create_index(self, node: CreateIndexStm) -> T:
+    def visit_create_index(self, node: CreateIndexStm) -> S:
         pass
 
     @abstractmethod
-    def visit_insert(self, node: InsertStm) -> T:
+    def visit_insert(self, node: InsertStm) -> S:
         pass
 
     @abstractmethod
-    def visit_alter(self, node: AlterStm) -> T:
+    def visit_alter(self, node: AlterStm) -> S:
         pass
 
     @abstractmethod
-    def visit_select(self, node: SelectStm) -> T:
+    def visit_select(self, node: SelectStm) -> S:
         pass
 
     @abstractmethod
-    def visit_delete(self, node: DeleteStm) -> T:
+    def visit_delete(self, node: DeleteStm) -> S:
         pass
 
     @abstractmethod
-    def visit_binary_exp(self, node: BinaryExp) -> T:
+    def visit_binary_exp(self, node: BinaryExp) -> E:
         pass
 
     @abstractmethod
-    def visit_unary_exp(self, node: UnaryExp) -> T:
+    def visit_unary_exp(self, node: UnaryExp) -> E:
         pass
 
     @abstractmethod
-    def visit_literal_exp(self, node: LiteralExp) -> T:
+    def visit_literal_exp(self, node: LiteralExp) -> E:
         pass
 
     @abstractmethod
-    def visit_id_exp(self, node: IdExp) -> T:
+    def visit_id_exp(self, node: IdExp) -> E:
         pass

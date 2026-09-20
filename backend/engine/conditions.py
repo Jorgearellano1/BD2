@@ -1,3 +1,4 @@
+from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
 
@@ -18,23 +19,30 @@ class LogicalOperator(Enum):
     NOT = "NOT"
 
 
+class Operand(ABC):
+    """Operando de una condicion: columna o literal."""
+    pass
+
+
 @dataclass(frozen=True)
-class ColumnRef:
+class ColumnRef(Operand):
     """Operando que referencia una columna del registro."""
     name: str
 
 
 @dataclass(frozen=True)
-class LiteralValue:
+class LiteralValue(Operand):
     """Operando que representa un valor literal."""
     value: Key
 
 
-Operand = ColumnRef | LiteralValue
+class Expression(ABC):
+    """Expresion semantica/ejecutable."""
+    pass
 
 
 @dataclass(frozen=True)
-class Condition:
+class Condition(Expression):
     """Comparacion entre dos operandos (columna o literal)."""
     left: Operand
     operator: ComparisonOperator
@@ -42,7 +50,7 @@ class Condition:
 
 
 @dataclass(frozen=True)
-class LogicalExpression:
+class LogicalExpression(Expression):
     """
     Expresion logica que combina una o mas expresiones.
 
@@ -51,9 +59,6 @@ class LogicalExpression:
     """
     operator: LogicalOperator
     operands: tuple["Expression", ...]
-
-
-Expression = Condition | LogicalExpression
 
 
 def _resolve_operand(

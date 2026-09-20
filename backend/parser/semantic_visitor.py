@@ -112,18 +112,20 @@ def _table_meta_with_unique(
     return TableMetadata(meta.name, columns, meta.primary_key)
 
 
-class SemanticVisitor(Visitor[None]):
+class SemanticVisitor(Visitor[None, None]):
 
     def __init__(self, catalog: Catalog) -> None:
         self.catalog = catalog
         self._new_tables: dict[str, _TableInfo] = {}
         self._new_indexes: dict[str, _IndexInfo] = {}
         self._current_table: TableMetadata | None = None
+        self._where_columns: set[str] = set()
 
     def visit_program(self, node: Program) -> None:
         self._new_tables = {}
         self._new_indexes = {}
         self._current_table = None
+        self._where_columns = set()
 
         for statement in node.statements:
             statement.accept(self)
@@ -318,20 +320,11 @@ class SemanticVisitor(Visitor[None]):
             for column in node.columns:
                 self._require_column(metadata, column)
 
-        if node.force_indexes is not None:
-            for index_name in node.force_indexes:
-                info = self._get_index_info(index_name)
-                if info is None:
-                    raise ValueError(
-                        f"Error semantico: el indice '{index_name}' no existe"
-                    )
-                if info.table != node.table:
-                    raise ValueError(
-                        f"Error semantico: el indice '{index_name}' no "
-                        f"pertenece a la tabla '{node.table}'"
-                    )
-
         self._validate_where(metadata, node.where)
+
+        self._validate_force(
+            node.table, node.force_indexes, node.force_all_indexes
+        )
 
     def visit_delete(self, node: DeleteStm) -> None:
         if not self._table_exists(node.table):
@@ -342,12 +335,60 @@ class SemanticVisitor(Visitor[None]):
         metadata = self._get_table_meta(node.table)
         self._validate_where(metadata, node.where)
 
+        self._validate_force(
+            node.table, node.force_indexes, node.force_all_indexes
+        )
+
+    def _validate_force(
+        self,
+        table: str,
+        force_indexes: list[str] | None,
+        force_all_indexes: bool,
+    ) -> None:
+        if force_all_indexes:
+            if not (self._table_index_columns(table) & self._where_columns):
+                raise ValueError(
+                    f"Error semantico: FORCE INDEX(*) no tiene "
+                    f"ningun indice asociado a las columnas del WHERE"
+                )
+            return
+
+        if force_indexes is None:
+            return
+
+        seen: set[str] = set()
+        for index_name in force_indexes:
+            if index_name in seen:
+                raise ValueError(
+                    f"Error semantico: el indice '{index_name}' esta "
+                    f"repetido en FORCE INDEX"
+                )
+            seen.add(index_name)
+
+            info = self._get_index_info(index_name)
+            if info is None:
+                raise ValueError(
+                    f"Error semantico: el indice '{index_name}' no existe"
+                )
+            if info.table != table:
+                raise ValueError(
+                    f"Error semantico: el indice '{index_name}' no "
+                    f"pertenece a la tabla '{table}'"
+                )
+            if info.column not in self._where_columns:
+                raise ValueError(
+                    f"Error semantico: el indice '{index_name}' no "
+                    f"corresponde a ninguna columna del WHERE"
+                )
+
     def _validate_where(
         self,
         metadata: TableMetadata | None,
         where,
     ) -> None:
-        if where is None or metadata is None:
+        self._where_columns = set()
+
+        if where is None:
             return
 
         self._current_table = metadata
@@ -363,6 +404,8 @@ class SemanticVisitor(Visitor[None]):
             return
 
         if node.op in _COMPARISON_OPS:
+            node.left.accept(self)
+            node.right.accept(self)
             self._validate_comparison(node)
 
     def visit_unary_exp(self, node: UnaryExp) -> None:
@@ -372,7 +415,7 @@ class SemanticVisitor(Visitor[None]):
         pass
 
     def visit_id_exp(self, node: IdExp) -> None:
-        pass
+        self._where_columns.add(node.value)
 
     def _validate_comparison(self, node: BinaryExp) -> None:
         table = self._current_table
@@ -446,6 +489,19 @@ class SemanticVisitor(Visitor[None]):
         if self.catalog.index_exists(name):
             return self.catalog.get_index(name)
         return None
+
+    def _table_index_columns(self, table_name: str) -> set[str]:
+        """Columnas con indice para una tabla (overlay + catalogo)."""
+        columns = {
+            info.column
+            for info in self._new_indexes.values()
+            if info.table == table_name
+        }
+        columns.update(
+            index.column
+            for index in self.catalog.get_table_indexes(table_name)
+        )
+        return columns
 
     # Helpers de esquema
     def _require_column(self, metadata: TableMetadata, name: str) -> None:

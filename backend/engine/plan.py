@@ -64,22 +64,51 @@ class AddUniquePlan(PlanNode):
 
 @dataclass
 class DeletePlan(PlanNode):
-    """Plan para eliminar registros."""
+    """
+    Plan para eliminar registros.
+
+    child:
+        Plan de acceso que localiza los registros candidatos.
+        Puede trabajar con RIDs, bitmaps o registros, dependiendo
+        del tipo de acceso y almacenamiento.
+
+    residual:
+        Condicion del WHERE que no fue resuelta por el indice.
+        Debe evaluarse sobre los registros candidatos antes de
+        realizar el borrado.
+
+    Resultado:
+        El DELETE devuelve los RawRecord que fueron eliminados.
+        Los RIDs se usan internamente para realizar el borrado.
+    """
 
     table: str
     child: PlanNode
+    residual: Expression | None = None
 
 
 @dataclass
 class SeqScanPlan(PlanNode):
-    """Recorrido secuencial de una tabla."""
+    """
+    Recorrido secuencial de una tabla.
+
+    SELECT:
+        produce registros para Filter/Project.
+
+    DELETE:
+        sirve como fuente de candidatos para DeletePlan.
+    """
 
     table: str
 
 
 @dataclass
 class IndexScanPlan(PlanNode):
-    """Busqueda por igualdad mediante un indice."""
+    """
+    Busqueda por igualdad mediante un indice.
+
+    El resultado conceptual son RIDs de registros candidatos.
+    """
 
     table: str
     index: str
@@ -99,7 +128,11 @@ class RangeSpec:
 
 @dataclass
 class IndexRangeScanPlan(PlanNode):
-    """Busqueda de rango mediante un indice."""
+    """
+    Busqueda de rango mediante un indice.
+
+    El resultado conceptual son RIDs de registros candidatos.
+    """
 
     table: str
     index: str
@@ -108,7 +141,12 @@ class IndexRangeScanPlan(PlanNode):
 
 @dataclass
 class BitmapIndexScanPlan(PlanNode):
-    """Busqueda por igualdad para generar un bitmap."""
+    """
+    Busqueda por igualdad para generar un bitmap.
+
+    El bitmap representa un conjunto de RIDs.
+    No recupera todavia los registros del Heap.
+    """
 
     table: str
     index: str
@@ -118,7 +156,11 @@ class BitmapIndexScanPlan(PlanNode):
 
 @dataclass
 class BitmapIndexRangeScanPlan(PlanNode):
-    """Busqueda de rango para generar un bitmap."""
+    """
+    Busqueda de rango para generar un bitmap.
+
+    El bitmap representa un conjunto de RIDs.
+    """
 
     table: str
     index: str
@@ -127,21 +169,33 @@ class BitmapIndexRangeScanPlan(PlanNode):
 
 @dataclass
 class BitmapAndPlan(PlanNode):
-    """Interseccion de varios bitmaps."""
+    """
+    Interseccion de varios bitmaps.
+
+    El resultado sigue siendo un conjunto de RIDs.
+    """
 
     children: list[PlanNode]
 
 
 @dataclass
 class BitmapOrPlan(PlanNode):
-    """Union de varios bitmaps."""
+    """
+    Union de varios bitmaps.
+
+    El resultado sigue siendo un conjunto de RIDs.
+    """
 
     children: list[PlanNode]
 
 
 @dataclass
 class HeapFetchPlan(PlanNode):
-    """Recupera registros a partir de RIDs."""
+    """
+    Recupera registros a partir de RIDs.
+
+    Se utiliza en SELECT antes de Filter y Project.
+    """
 
     table: str
     child: PlanNode
@@ -149,7 +203,11 @@ class HeapFetchPlan(PlanNode):
 
 @dataclass
 class BitmapHeapScanPlan(PlanNode):
-    """Recupera registros a partir de un bitmap."""
+    """
+    Recupera registros a partir de un bitmap de RIDs.
+
+    Se utiliza en SELECT antes de Filter y Project.
+    """
 
     table: str
     child: PlanNode
@@ -157,7 +215,11 @@ class BitmapHeapScanPlan(PlanNode):
 
 @dataclass
 class FilterPlan(PlanNode):
-    """Evalua una condicion sobre los registros."""
+    """
+    Evalua una condicion sobre registros completos.
+
+    No trabaja directamente con RIDs.
+    """
 
     predicate: Expression
     child: PlanNode
@@ -165,7 +227,11 @@ class FilterPlan(PlanNode):
 
 @dataclass
 class ProjectPlan(PlanNode):
-    """Selecciona las columnas de salida."""
+    """
+    Selecciona las columnas de salida.
+
+    Solo corresponde a SELECT.
+    """
 
     columns: list[str]
     child: PlanNode

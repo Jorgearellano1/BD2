@@ -8,7 +8,8 @@ if TYPE_CHECKING:
     from visitor import Visitor
 
 
-T = TypeVar("T")
+S = TypeVar("S")
+E = TypeVar("E")
 
 
 # Operators
@@ -50,7 +51,7 @@ class IndexType(Enum):
 
 class Exp:
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> E:
         raise NotImplementedError
 
 
@@ -60,7 +61,7 @@ class BinaryExp(Exp):
     right: Exp
     op: BinaryOp
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> E:
         return visitor.visit_binary_exp(self)
 
 
@@ -69,7 +70,7 @@ class UnaryExp(Exp):
     value: Exp
     op: UnaryOp
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> E:
         return visitor.visit_unary_exp(self)
 
 
@@ -77,7 +78,7 @@ class UnaryExp(Exp):
 class LiteralExp(Exp):
     value: int | float | str
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> E:
         return visitor.visit_literal_exp(self)
 
 
@@ -85,7 +86,7 @@ class LiteralExp(Exp):
 class IdExp(Exp):
     value: str
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> E:
         return visitor.visit_id_exp(self)
 
 
@@ -110,7 +111,7 @@ class CsvSource:
 
 class Stm:
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> S:
         raise NotImplementedError
 
 
@@ -122,7 +123,7 @@ class CreateTableStm(Stm):
     csv: CsvSource | None = None
     primary_key: str | None = None
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_create_table(self)
 
 
@@ -133,7 +134,7 @@ class CreateIndexStm(Stm):
     column: str
     index_type: IndexType
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_create_index(self)
 
 
@@ -142,7 +143,7 @@ class InsertStm(Stm):
     table: str
     values: list[Exp]
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_insert(self)
 
 
@@ -151,7 +152,7 @@ class AlterStm(Stm):
     table: str
     column: str
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_alter(self)
 
 
@@ -161,18 +162,22 @@ class SelectStm(Stm):
     table: str
     force_indexes: list[str] | None = None
     force_seqscan: bool = False
+    force_all_indexes: bool = False
     where: Exp | None = None
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_select(self)
 
 
 @dataclass
 class DeleteStm(Stm):
     table: str
+    force_indexes: list[str] | None = None
+    force_seqscan: bool = False
+    force_all_indexes: bool = False
     where: Exp | None = None
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_delete(self)
 
 
@@ -182,5 +187,5 @@ class DeleteStm(Stm):
 class Program:
     statements: list[Stm]
 
-    def accept(self, visitor: Visitor[T]) -> T:
+    def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_program(self)

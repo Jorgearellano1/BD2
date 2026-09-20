@@ -395,8 +395,9 @@ class Parser:
 
         force_indexes = None
         force_seqscan = False
+        force_all_indexes = False
         if self.check(TokenType.FORCE):
-            force_indexes, force_seqscan = self.parse_force_clause()
+            force_indexes, force_seqscan, force_all_indexes = self.parse_force_clause()
 
         where = None
         if self.check(TokenType.WHERE):
@@ -409,6 +410,7 @@ class Parser:
             table=table,
             force_indexes=force_indexes,
             force_seqscan=force_seqscan,
+            force_all_indexes=force_all_indexes,
             where=where
         )
 
@@ -430,21 +432,26 @@ class Parser:
 
         return columns
 
-    def parse_force_clause(self) -> tuple[list[str] | None, bool]:
+    def parse_force_clause(self) -> tuple[list[str] | None, bool, bool]:
         self.match(TokenType.FORCE)
 
         if self.check(TokenType.SEQSCAN):
             self.match(TokenType.SEQSCAN)
-            return None, True
+            return None, True, False
 
         self.match(TokenType.INDEX)
         self.match(TokenType.LPAREN)
+
+        if self.check(TokenType.STAR):
+            self.match(TokenType.STAR)
+            self.match(TokenType.RPAREN)
+            return None, False, True
 
         indexes = self.parse_index_list()
 
         self.match(TokenType.RPAREN)
 
-        return indexes, False
+        return indexes, False, False
 
     def parse_index_list(self) -> list[str]:
         indexes: list[str] = []
@@ -575,6 +582,12 @@ class Parser:
 
         table = self.match(TokenType.ID).text
 
+        force_indexes = None
+        force_seqscan = False
+        force_all_indexes = False
+        if self.check(TokenType.FORCE):
+            force_indexes, force_seqscan, force_all_indexes = self.parse_force_clause()
+
         where = None
 
         if self.check(TokenType.WHERE):
@@ -584,5 +597,8 @@ class Parser:
 
         return DeleteStm(
             table=table,
+            force_indexes=force_indexes,
+            force_seqscan=force_seqscan,
+            force_all_indexes=force_all_indexes,
             where=where
         )
