@@ -35,7 +35,7 @@ async function request(path, body) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = typeof data.detail === 'string' ? data.detail : 'No se pudo completar la operación.';
+    const message = typeof data.detail === 'string' ? data.detail : Array.isArray(data.detail) ? data.detail.map((item) => item.msg).join(' · ') : 'No se pudo completar la operación.';
     throw new Error(message);
   }
   return data;
@@ -144,6 +144,11 @@ function renderResult(data) {
   message.className = 'result-message';
   message.textContent = data.message;
   message.hidden = Boolean(data.columns?.length && data.rows.length);
+  if (data.success === false) {
+    message.hidden = false;
+    message.className = 'result-message error';
+    message.textContent = data.error;
+  }
   if (data.columns?.length) {
     const table = document.createElement('table');
     const head = table.createTHead().insertRow();
@@ -200,8 +205,9 @@ async function run(path, body, message) {
   byId('result-message').hidden = true;
   try {
     const data = await request(path, body);
+    if (data.success === false && !data.statements) throw new Error(data.error || 'No se pudo ejecutar la consulta.');
     renderResult(data);
-    byId('query-state').textContent = 'Operación completada.';
+    byId('query-state').textContent = data.success === false ? 'El script se detuvo; se muestran los últimos resultados disponibles.' : 'Operación completada.';
     if (data.table) state.selected = data.table;
   } catch (error) {
     showError(error);
