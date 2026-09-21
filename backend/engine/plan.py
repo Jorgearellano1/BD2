@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, TypeVar
 from engine.conditions import Expression
 from engine.metadata import (
     IndexKind,
@@ -11,10 +11,27 @@ from engine.metadata import (
 )
 
 
+if TYPE_CHECKING:
+    from engine.plan_visitor import PlanVisitor
+
+R = TypeVar("R")
+
+
 class PlanNode:
     """Nodo base del arbol de ejecucion."""
 
-    pass
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class StatementInfo:
+    """Informacion original de una sentencia para el Executor."""
+
+    statement_id: int
+    statement_type: str
+    table: str | None
+    select_columns: list[str] | None
 
 
 @dataclass
@@ -22,6 +39,10 @@ class ProgramPlan(PlanNode):
     """Plan para ejecutar varias sentencias."""
 
     statements: list[PlanNode]
+    statement_infos: list[StatementInfo] = field(default_factory=list)
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_program(self)
 
 
 @dataclass
@@ -35,6 +56,9 @@ class CreateTablePlan(PlanNode):
     delimiter: str
     primary_key: str | None
 
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_create_table(self)
+
 
 @dataclass
 class CreateIndexPlan(PlanNode):
@@ -45,6 +69,9 @@ class CreateIndexPlan(PlanNode):
     column: str
     index_kind: IndexKind
 
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_create_index(self)
+
 
 @dataclass
 class InsertPlan(PlanNode):
@@ -52,6 +79,9 @@ class InsertPlan(PlanNode):
 
     table: str
     values: tuple[Key, ...]
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_insert(self)
 
 
 @dataclass
@@ -61,6 +91,9 @@ class AddUniquePlan(PlanNode):
     table: str
     column: str
 
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_add_unique(self)
+
 
 @dataclass
 class DeletePlan(PlanNode):
@@ -68,23 +101,37 @@ class DeletePlan(PlanNode):
     Plan para eliminar registros.
 
     child:
-        Plan de acceso que localiza los registros candidatos.
-        Puede trabajar con RIDs, bitmaps o registros, dependiendo
-        del tipo de acceso y almacenamiento.
-
-    residual:
-        Condicion del WHERE que no fue resuelta por el indice.
-        Debe evaluarse sobre los registros candidatos antes de
-        realizar el borrado.
+        Plan que produce los RIDs finales que deben eliminarse.
 
     Resultado:
-        El DELETE devuelve los RawRecord que fueron eliminados.
-        Los RIDs se usan internamente para realizar el borrado.
+        El DELETE devuelve los RawRecord eliminados.
     """
 
     table: str
     child: PlanNode
-    residual: Expression | None = None
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_delete(self)
+
+@dataclass
+class SequentialDeletePlan(PlanNode):
+    """Elimina registros directamente mediante SequentialFile."""
+
+    table: str
+    predicate: Expression | None
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_sequential_delete(self)
+
+
+@dataclass
+class SequentialRangeScanPlan(PlanNode):
+    table: str
+    column: str
+    range: RangeSpec
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_sequential_range_scan(self)
 
 
 @dataclass
@@ -92,14 +139,36 @@ class SeqScanPlan(PlanNode):
     """
     Recorrido secuencial de una tabla.
 
-    SELECT:
-        produce registros para Filter/Project.
+    predicate=None:
+        scan completo.
 
-    DELETE:
-        sirve como fuente de candidatos para DeletePlan.
+    predicate=Expression:
+        scan secuencial aplicando esa expresion completa.
     """
 
     table: str
+    predicate: Expression | None = None
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_seq_scan(self)
+
+
+@dataclass
+class SeqScanRidsPlan(PlanNode):
+    """
+    Recorrido secuencial de una tabla que produce RIDs.
+
+    Se utiliza como access path para DELETE cuando no se utiliza
+    un indice.
+
+    Resultado:
+        RIDs de los registros recorridos.
+    """
+
+    table: str
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_seq_scan_rids(self)
 
 
 @dataclass
@@ -114,6 +183,9 @@ class IndexScanPlan(PlanNode):
     index: str
     index_kind: IndexKind
     key: Key
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_index_scan(self)
 
 
 @dataclass(frozen=True)
@@ -138,6 +210,9 @@ class IndexRangeScanPlan(PlanNode):
     index: str
     range: RangeSpec
 
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_index_range_scan(self)
+
 
 @dataclass
 class BitmapIndexScanPlan(PlanNode):
@@ -153,6 +228,9 @@ class BitmapIndexScanPlan(PlanNode):
     index_kind: IndexKind
     key: Key
 
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_bitmap_index_scan(self)
+
 
 @dataclass
 class BitmapIndexRangeScanPlan(PlanNode):
@@ -166,6 +244,9 @@ class BitmapIndexRangeScanPlan(PlanNode):
     index: str
     range: RangeSpec
 
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_bitmap_index_range_scan(self)
+
 
 @dataclass
 class BitmapAndPlan(PlanNode):
@@ -177,6 +258,9 @@ class BitmapAndPlan(PlanNode):
 
     children: list[PlanNode]
 
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_bitmap_and(self)
+
 
 @dataclass
 class BitmapOrPlan(PlanNode):
@@ -187,6 +271,9 @@ class BitmapOrPlan(PlanNode):
     """
 
     children: list[PlanNode]
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_bitmap_or(self)
 
 
 @dataclass
@@ -200,6 +287,9 @@ class HeapFetchPlan(PlanNode):
     table: str
     child: PlanNode
 
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_heap_fetch(self)
+
 
 @dataclass
 class BitmapHeapScanPlan(PlanNode):
@@ -211,6 +301,9 @@ class BitmapHeapScanPlan(PlanNode):
 
     table: str
     child: PlanNode
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_bitmap_heap_scan(self)
 
 
 @dataclass
@@ -224,6 +317,49 @@ class FilterPlan(PlanNode):
     predicate: Expression
     child: PlanNode
 
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_filter(self)
+
+
+@dataclass
+class FilterRidsPlan(PlanNode):
+    """
+    Filtra candidatos identificados por RID.
+
+    child:
+        Plan que produce RIDs o un bitmap de RIDs.
+
+    predicate:
+        Condicion que debe evaluarse sobre el registro asociado
+        a cada RID.
+
+    Resultado:
+        RIDs de los registros que cumplen la condicion.
+    """
+
+    table: str
+    predicate: Expression
+    child: PlanNode
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_filter_rids(self)
+
+
+@dataclass
+class EmptyResultPlan(PlanNode):
+    """
+    Representa un resultado vacio.
+
+    Se utiliza cuando una expresion se reduce logicamente
+    a FALSE.
+
+    Resultado:
+        No produce registros ni RIDs.
+    """
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_empty_result(self)
+
 
 @dataclass
 class ProjectPlan(PlanNode):
@@ -235,3 +371,6 @@ class ProjectPlan(PlanNode):
 
     columns: list[str]
     child: PlanNode
+
+    def accept(self, visitor: PlanVisitor[R]) -> R:
+        return visitor.visit_project(self)

@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from visitor import Visitor
+from .visitor import Visitor
 
-from ast import (
+from .ast import (
     Program,
     CreateTableStm,
     CreateIndexStm,
@@ -51,6 +51,14 @@ _NUMERIC_TYPES = {'INT', 'FLOAT'}
 
 # Tipos soportados por el almacenamiento.
 _SUPPORTED_TYPES = {'INT', 'FLOAT', 'CHAR'}
+
+
+class SemanticError(ValueError):
+    """Error semantico asociado a una sentencia concreta del Program."""
+
+    def __init__(self, statement_id: int, message: str) -> None:
+        super().__init__(message)
+        self.statement_id = statement_id
 
 
 @dataclass
@@ -119,16 +127,19 @@ class SemanticVisitor(Visitor[None, None]):
         self._new_tables: dict[str, _TableInfo] = {}
         self._new_indexes: dict[str, _IndexInfo] = {}
         self._current_table: TableMetadata | None = None
-        self._where_columns: set[str] = set()
 
     def visit_program(self, node: Program) -> None:
         self._new_tables = {}
         self._new_indexes = {}
         self._current_table = None
-        self._where_columns = set()
 
-        for statement in node.statements:
-            statement.accept(self)
+        for statement_id, statement in enumerate(node.statements, start=1):
+            try:
+                statement.accept(self)
+            except SemanticError:
+                raise
+            except ValueError as exc:
+                raise SemanticError(statement_id, str(exc)) from exc
 
     def visit_create_table(self, node: CreateTableStm) -> None:
         if self._table_exists(node.name):
@@ -323,7 +334,7 @@ class SemanticVisitor(Visitor[None, None]):
         self._validate_where(metadata, node.where)
 
         self._validate_force(
-            node.table, node.force_indexes, node.force_all_indexes
+            node.table, node.force_indexes, node.force_seqscan, node.force_all_indexes
         )
 
     def visit_delete(self, node: DeleteStm) -> None:
@@ -336,21 +347,26 @@ class SemanticVisitor(Visitor[None, None]):
         self._validate_where(metadata, node.where)
 
         self._validate_force(
-            node.table, node.force_indexes, node.force_all_indexes
+            node.table, node.force_indexes, node.force_seqscan, node.force_all_indexes
         )
 
     def _validate_force(
         self,
         table: str,
         force_indexes: list[str] | None,
+        force_seqscan: bool,
         force_all_indexes: bool,
     ) -> None:
-        if force_all_indexes:
-            if not (self._table_index_columns(table) & self._where_columns):
+        # SequentialFile no admite FORCE: ni indexes ni seqscan.
+        if self._get_table_storage(table) is StorageKind.SEQUENTIAL:
+            if force_indexes is not None or force_seqscan or force_all_indexes:
                 raise ValueError(
-                    f"Error semantico: FORCE INDEX(*) no tiene "
-                    f"ningun indice asociado a las columnas del WHERE"
+                    f"Error semantico: la tabla SEQUENTIAL '{table}' no "
+                    f"admite FORCE"
                 )
+            return
+
+        if force_all_indexes:
             return
 
         if force_indexes is None:
@@ -375,19 +391,12 @@ class SemanticVisitor(Visitor[None, None]):
                     f"Error semantico: el indice '{index_name}' no "
                     f"pertenece a la tabla '{table}'"
                 )
-            if info.column not in self._where_columns:
-                raise ValueError(
-                    f"Error semantico: el indice '{index_name}' no "
-                    f"corresponde a ninguna columna del WHERE"
-                )
 
     def _validate_where(
         self,
         metadata: TableMetadata | None,
         where,
     ) -> None:
-        self._where_columns = set()
-
         if where is None:
             return
 
@@ -404,8 +413,6 @@ class SemanticVisitor(Visitor[None, None]):
             return
 
         if node.op in _COMPARISON_OPS:
-            node.left.accept(self)
-            node.right.accept(self)
             self._validate_comparison(node)
 
     def visit_unary_exp(self, node: UnaryExp) -> None:
@@ -415,15 +422,19 @@ class SemanticVisitor(Visitor[None, None]):
         pass
 
     def visit_id_exp(self, node: IdExp) -> None:
-        self._where_columns.add(node.value)
+        pass
 
     def _validate_comparison(self, node: BinaryExp) -> None:
+        left = node.left
+        right = node.right
+
+        if isinstance(left, LiteralExp) and isinstance(right, LiteralExp):
+            self._validate_literal_literal(left, right)
+            return
+
         table = self._current_table
         if table is None:
             return
-
-        left = node.left
-        right = node.right
 
         if isinstance(left, IdExp) and isinstance(right, IdExp):
             self._require_column(table, left.value)
@@ -445,7 +456,28 @@ class SemanticVisitor(Visitor[None, None]):
             self._validate_column_literal(table, right.value, left.value)
             return
 
-        # Literal contra literal: permitido.
+    def _validate_literal_literal(
+        self,
+        left: LiteralExp,
+        right: LiteralExp,
+    ) -> None:
+        left_kind = self._literal_kind(left.value)
+        right_kind = self._literal_kind(right.value)
+        if left_kind != right_kind or left_kind == 'unknown':
+            raise ValueError(
+                f"Error semantico: comparacion incompatible entre literales "
+                f"{left.value!r} y {right.value!r}"
+            )
+
+    @staticmethod
+    def _literal_kind(value) -> str:
+        if isinstance(value, bool):
+            return 'unknown'
+        if isinstance(value, (int, float)):
+            return 'number'
+        if isinstance(value, str):
+            return 'text'
+        return 'unknown'
 
     def _validate_column_literal(
         self,
@@ -489,19 +521,6 @@ class SemanticVisitor(Visitor[None, None]):
         if self.catalog.index_exists(name):
             return self.catalog.get_index(name)
         return None
-
-    def _table_index_columns(self, table_name: str) -> set[str]:
-        """Columnas con indice para una tabla (overlay + catalogo)."""
-        columns = {
-            info.column
-            for info in self._new_indexes.values()
-            if info.table == table_name
-        }
-        columns.update(
-            index.column
-            for index in self.catalog.get_table_indexes(table_name)
-        )
-        return columns
 
     # Helpers de esquema
     def _require_column(self, metadata: TableMetadata, name: str) -> None:

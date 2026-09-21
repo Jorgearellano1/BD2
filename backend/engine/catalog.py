@@ -131,6 +131,10 @@ class Catalog:
     def table_exists(self, name: str) -> bool:
         return name in self._tables
 
+    def tables(self) -> list[TableEntry]:
+        """Todas las tablas ordenadas por nombre."""
+        return [self._tables[name] for name in sorted(self._tables)]
+
     def get_table(self, name: str) -> TableEntry:
         if name not in self._tables:
             raise ValueError(f"La tabla '{name}' no existe en el catalogo")
@@ -140,6 +144,15 @@ class Catalog:
         if entry.name in self._tables:
             raise ValueError(
                 f"La tabla '{entry.name}' ya existe en el catalogo"
+            )
+        self._tables[entry.name] = entry
+        self.save()
+
+    def update_table(self, entry: TableEntry) -> None:
+        """Reemplaza la metadata de una tabla existente."""
+        if entry.name not in self._tables:
+            raise ValueError(
+                f"La tabla '{entry.name}' no existe en el catalogo"
             )
         self._tables[entry.name] = entry
         self.save()
@@ -163,6 +176,10 @@ class Catalog:
     # Indices
     def index_exists(self, name: str) -> bool:
         return name in self._indexes
+
+    def indexes(self) -> list[IndexMetadata]:
+        """Todos los indices ordenados por nombre."""
+        return [self._indexes[name] for name in sorted(self._indexes)]
 
     def get_index(self, name: str) -> IndexMetadata:
         if name not in self._indexes:

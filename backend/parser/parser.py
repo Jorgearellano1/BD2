@@ -1,13 +1,13 @@
-from ast import DeleteStm
-from ast import SelectStm
-from ast import AlterStm
-from ast import InsertStm
-from ast import CsvSource
-from scanner import Scanner
-from token import Token, TokenType
-from ast import Program, Stm, CreateIndexStm, IndexType, CreateTableStm, StorageType, ColumnDef, DataType, Exp, LiteralExp
-from ast import BinaryOp, UnaryOp
-from ast import BinaryExp, UnaryExp, LiteralExp, IdExp
+from .ast import DeleteStm
+from .ast import SelectStm
+from .ast import AlterStm
+from .ast import InsertStm
+from .ast import CsvSource
+from .scanner import Scanner
+from .token import Token, TokenType
+from .ast import Program, Stm, CreateIndexStm, IndexType, CreateTableStm, StorageType, ColumnDef, DataType, Exp, LiteralExp
+from .ast import BinaryOp, UnaryOp
+from .ast import BinaryExp, UnaryExp, LiteralExp, IdExp
 
 class Parser:
     def __init__(self, scanner: Scanner):
@@ -50,6 +50,11 @@ class Parser:
 
     def is_at_end(self) -> bool:
         return self.current.type == TokenType.EOF
+
+    @staticmethod
+    def _string_literal(token: Token) -> str:
+        """Devuelve el valor de un STRING_LITERAL sin las comillas sintacticas."""
+        return token.text[1:-1]
 
     # Reglas gramaticales
     def parse_program(self) -> Program:
@@ -276,14 +281,14 @@ class Parser:
         self.match(TokenType.CSV)
         self.match(TokenType.LPAREN)
 
-        path = self.match(TokenType.STRING_LITERAL).text
+        path = self._string_literal(self.match(TokenType.STRING_LITERAL))
         delimiter = ","
 
         if self.check(TokenType.COMMA):
             self.match(TokenType.COMMA)
             self.match(TokenType.DELIMITER)
             self.match(TokenType.EQ)
-            delimiter = self.match(TokenType.STRING_LITERAL).text
+            delimiter = self._string_literal(self.match(TokenType.STRING_LITERAL))
 
         self.match(TokenType.RPAREN)
 
@@ -355,7 +360,7 @@ class Parser:
             return LiteralExp(value)
 
         elif self.check(TokenType.STRING_LITERAL):
-            value = self.match(TokenType.STRING_LITERAL).text
+            value = self._string_literal(self.match(TokenType.STRING_LITERAL))
             return LiteralExp(value)
 
         raise SyntaxError(
@@ -525,7 +530,7 @@ class Parser:
             return LiteralExp(float(self.match(TokenType.REAL_LITERAL).text))
 
         if self.check(TokenType.STRING_LITERAL):
-            return LiteralExp(self.match(TokenType.STRING_LITERAL).text)
+            return LiteralExp(self._string_literal(self.match(TokenType.STRING_LITERAL)))
 
         raise SyntaxError(
             f"Error sintactico: se esperaba un operando, "

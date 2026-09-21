@@ -829,6 +829,33 @@ class SequentialFile(StorageFile):
         result.sort(key=lambda raw: raw[index])
         return [self.table_meta.clean_tuple(raw) for raw in result]
 
+    def range_search_raw(self, key_column: str, begin_key: Key | None,
+                         end_key: Key | None, include_begin: bool = True,
+                         include_end: bool = True) -> list[RawRecord]:
+        """Igual que range_search pero devuelve RawRecord sin limpiar."""
+        self._ensure_open()
+        index = self.table_meta.col_index(key_column)
+        begin = None if begin_key is None else self._normalized_key(key_column, begin_key)
+        end = None if end_key is None else self._normalized_key(key_column, end_key)
+        if begin is not None and end is not None and begin > end:
+            return []
+        if key_column == self.key_column:
+            low = None if begin is None else (begin, -1)
+            high = None if end is None else (end, 2 ** 63 - 1)
+            records = self._pages.iter_records(low, high)
+        else:
+            records = self._pages.iter_records()
+        result = []
+        for record in records:
+            value = record.values[index]
+            if begin is not None and (value < begin or (value == begin and not include_begin)):
+                continue
+            if end is not None and (value > end or (value == end and not include_end)):
+                continue
+            result.append(record.values)
+        result.sort(key=lambda raw: raw[index])
+        return result
+
     def delete(self, expression: Expression) -> RawRecord | None:
         record = next(self._matching(expression), None)
         if record is None:

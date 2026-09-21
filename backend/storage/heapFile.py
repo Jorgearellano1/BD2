@@ -10,7 +10,7 @@ from typing import BinaryIO, Iterable, Iterator
 from engine.metadata import TableMetadata, RawRecord, RID, Key, CleanRecord
 from engine.bitmap import Bitmap
 from engine.conditions import Expression, evaluate_expression
-from storageFile import StorageFile
+from .storageFile import StorageFile
 
 
 class HeapFile(StorageFile):
@@ -391,6 +391,48 @@ class HeapFile(StorageFile):
                 record = struct.unpack(self.table_meta.struct_format, payload)
                 results[position] = record
         return [r for r in results if r is not None]
+
+    def read_many_with_rids(
+        self,
+        rids: list[RID],
+    ) -> list[tuple[RID, RawRecord]]:
+        """
+        Recupera los registros de los RIDs activos conservando la
+        correspondencia (RID, registro). Agrupa por pagina y lee cada una
+        como maximo una vez.
+        """
+        pages: dict[int, list[tuple[int, int]]] = defaultdict(list)
+
+        for position, (page_id, slot_id) in enumerate(rids):
+            pages[page_id].append((position, slot_id))
+
+        results: list[RawRecord | None] = [None] * len(rids)
+
+        f = self.file
+
+        for page_id, slots in pages.items():
+
+            f.seek(self._page_offset(page_id))
+            page_data = f.read(self.PAGE_SIZE)
+            self.page_reads += 1
+
+            for position, slot_id in slots:
+                local = self._record_offset_in_page(slot_id)
+
+                raw = page_data[local:local + self.RECORD_SIZE]
+                next_free, = struct.unpack(self.RECORD_META_FORMAT, raw[:self.RECORD_META_SIZE])
+
+                if next_free != -1:
+                    continue
+
+                payload = raw[self.RECORD_META_SIZE:]
+                results[position] = struct.unpack(self.table_meta.struct_format, payload)
+
+        return [
+            (rids[position], record)
+            for position, record in enumerate(results)
+            if record is not None
+        ]
 
     @staticmethod
     def _mask_to_slots(mask: int) -> Iterator[int]:
