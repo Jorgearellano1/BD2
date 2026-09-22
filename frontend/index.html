@@ -28,17 +28,19 @@ WHERE Student_ID &gt;= 100 AND Student_ID &lt;= 150;</textarea>
       </div>
       <div class="editor-footer"><span id="query-state" role="status"></span><button class="primary" id="execute" type="button">Ejecutar</button></div>
     </section>
-    <section class="panel results-panel" aria-labelledby="results-heading">
-      <div class="panel-header"><h2 id="results-heading">Resultados</h2><span class="record-count" id="record-count">—</span></div>
+    <section class="panel results-panel" aria-label="Resultados y plan de ejecución">
+      <div class="panel-header"><div role="tablist" aria-label="Vista de consulta" class="result-tabs"><button id="results-tab" type="button" role="tab" aria-selected="true" aria-controls="results-view">Resultados</button><button id="explain-tab" type="button" role="tab" aria-selected="false" aria-controls="explain-view" tabindex="-1">Explain</button></div><span class="record-count" id="record-count">—</span></div>
       <div class="result-message" id="result-message" role="status" hidden></div>
+      <div id="results-view" role="tabpanel" aria-labelledby="results-tab" tabindex="0">
       <div class="result-area" id="result-area"></div>
       <div class="pagination"><span id="page-info">Sin resultados</span><div><button id="previous" type="button" disabled>Anterior</button><button id="next" type="button" disabled>Siguiente</button></div></div>
+      </div>
+      <div id="explain-view" role="tabpanel" aria-labelledby="explain-tab" tabindex="0" hidden><pre id="explain">Ejecuta una consulta para ver su árbol de ejecución.</pre></div>
     </section>
     <section class="panel metrics-panel" aria-labelledby="metrics-heading">
       <div class="panel-header"><h2 id="metrics-heading">Plan y métricas</h2></div>
       <div class="metrics-content">
         <div class="plan-block"><span class="field-label">Ruta de acceso</span><strong id="plan">—</strong><span id="plan-detail"></span></div>
-        <details id="execution-tree" hidden><summary>Ver árbol de ejecución</summary><pre id="explain"></pre></details>
         <dl class="metrics"><div><dt>Lecturas de disco</dt><dd id="reads">—</dd></div><div><dt>Escrituras de disco</dt><dd id="writes">—</dd></div><div><dt>Tiempo de parseo</dt><dd id="parse-time">—</dd></div><div><dt>Tiempo de ejecución</dt><dd id="execution-time">—</dd></div></dl>
         <figure class="io-chart" aria-label="Comparación de bloques leídos y escritos"><figcaption>Transferencias de bloques</figcaption><div class="bar-row"><span>Lecturas</span><div class="bar-track"><div class="bar" id="reads-bar"></div></div></div><div class="bar-row"><span>Escrituras</span><div class="bar-track"><div class="bar secondary" id="writes-bar"></div></div></div></figure>
         <p class="page-size" id="page-size"></p>

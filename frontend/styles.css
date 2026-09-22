@@ -91,6 +91,8 @@ td.numeric { text-align: right; }
   .pagination { gap: 4px; }
 }
 
-#execution-tree { margin-bottom: 16px; }
-#execution-tree summary { cursor: pointer; }
-#explain { margin-top: 8px; overflow-x: auto; font: 12px/1.6 monospace; }
+.result-tabs { display: flex; gap: 8px; }
+.result-tabs [aria-selected="true"] { background: #ddd; border-color: #555; font-weight: bold; }
+#results-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#explain-view { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+#explain { font: 14px/1.8 monospace; }

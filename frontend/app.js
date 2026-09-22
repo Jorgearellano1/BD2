@@ -129,14 +129,13 @@ async function loadTables() {
 }
 
 function renderExplain(node) {
-  byId('execution-tree').hidden = !node;
   const lines = [];
   function visit(item, depth) {
     lines.push(`${'  '.repeat(depth)}${item.node_type.replace(/Plan$/, '')}`);
     for (const child of item.children) visit(child, depth + 1);
   }
   if (node) visit(node, 0);
-  byId('explain').textContent = lines.join('\n');
+  byId('explain').textContent = node ? lines.join('\n') : 'No hay árbol de ejecución disponible para esta operación.';
 }
 
 function clearMetrics() {
@@ -244,6 +243,28 @@ async function changePage(direction) {
     state.busy = false;
     controls();
   }
+}
+
+function selectResultTab(name) {
+  for (const tab of ['results', 'explain']) {
+    const active = tab === name;
+    byId(`${tab}-tab`).setAttribute('aria-selected', String(active));
+    byId(`${tab}-tab`).tabIndex = active ? 0 : -1;
+    byId(`${tab}-view`).hidden = !active;
+  }
+  byId('record-count').hidden = name !== 'results';
+}
+
+for (const name of ['results', 'explain']) {
+  const tab = byId(`${name}-tab`);
+  tab.addEventListener('click', () => selectResultTab(name));
+  tab.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 'results' : event.key === 'End' ? 'explain' : name === 'results' ? 'explain' : 'results';
+    selectResultTab(next);
+    byId(`${next}-tab`).focus();
+  });
 }
 
 editor.addEventListener('input', () => { highlightSql(); controls(); });
