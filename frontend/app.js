@@ -128,7 +128,19 @@ async function loadTables() {
   controls();
 }
 
+function renderExplain(node) {
+  byId('execution-tree').hidden = !node;
+  const lines = [];
+  function visit(item, depth) {
+    lines.push(`${'  '.repeat(depth)}${item.node_type.replace(/Plan$/, '')}`);
+    for (const child of item.children) visit(child, depth + 1);
+  }
+  if (node) visit(node, 0);
+  byId('explain').textContent = lines.join('\n');
+}
+
 function clearMetrics() {
+  renderExplain(null);
   byId('plan').textContent = '—';
   byId('plan-detail').textContent = '';
   for (const id of ['reads', 'writes', 'parse-time', 'execution-time']) byId(id).textContent = '—';
@@ -171,6 +183,7 @@ function renderResult(data) {
   byId('record-count').textContent = data.columns?.length ? `${format.format(data.total_rows)} registros` : `${format.format(data.affected_rows ?? 0)} afectados`;
   byId('page-info').textContent = data.total_rows ? `Página ${format.format(data.page)} de ${format.format(data.total_pages)}` : 'Sin filas';
   byId('plan').textContent = data.plan;
+  renderExplain(data.explain);
   byId('plan-detail').textContent = [data.table, data.index ? `Índice: ${data.index}` : null,
     data.statements > 1 ? `Último plan · métricas de ${data.statements} sentencias` : null].filter(Boolean).join(' · ');
   const metrics = data.metrics;

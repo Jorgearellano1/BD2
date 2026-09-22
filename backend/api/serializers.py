@@ -156,6 +156,7 @@ def frontend_output(output: ExecutionOutput, program, parse_ms: float, execution
         'message': (result.message or _STATEMENT_MESSAGES.get(result.statement_type, 'Consulta completada.')) if result else '',
         'table': info.table if info else None,
         'plan': ' + '.join(dict.fromkeys(access_nodes(explain.root))) if explain else '—',
+        'explain': node_to_dict(explain.root) if explain else None,
         'statements': len(output.explains),
         'metrics': {
             'disk_reads': sum(root.pages_read for root in roots),

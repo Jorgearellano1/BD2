@@ -90,3 +90,7 @@ td.numeric { text-align: right; }
   .metrics-content { display: block; }
   .pagination { gap: 4px; }
 }
+
+#execution-tree { margin-bottom: 16px; }
+#execution-tree summary { cursor: pointer; }
+#explain { margin-top: 8px; overflow-x: auto; font: 12px/1.6 monospace; }

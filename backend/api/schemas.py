@@ -96,6 +96,7 @@ class QueryResponse(BaseModel):
     message: str = ''
     table: str | None = None
     plan: str = '—'
+    explain: NodeMetricsResponse | None = None
     index: str | None = None
     statements: int = 0
     metrics: dict[str, float] = Field(default_factory=dict)
