@@ -1,8 +1,12 @@
-from engine.metadata import CleanRecord
 from typing import Optional, List, Tuple, Dict, Any
+import struct
+import os
+import hashlib
+
 
 from storage.heapFile import HeapFile
-from engine.metadata import RID, Key, TableMetadata
+from engine.metadata import TableMetadata, CleanRecord, RID, Key
+from indexes.index import Index
 
 class HashEntry:
 
@@ -241,9 +245,9 @@ class HashBucket:
 
         self.entries.clear()
 
-    # --------------------------------------------------
+    
     # Persistencia
-    # --------------------------------------------------
+    
 
     def serialize(self):
         """
@@ -320,7 +324,7 @@ class HashBucket:
             )
 
 
-class ExtendibleHash:
+class ExtendibleHash(Index):
     """
     Índice Extendible Hashing asociado a un HeapFile.
 
@@ -339,20 +343,22 @@ class ExtendibleHash:
         meta: TableMetadata,
         key_column: str,
         heap_file: HeapFile,
+        page_size: int,
         index_path: str,
-        bucket_capacity: int = 50,
-        global_depth: int = 1
+        bucket_capacity: int = 50
     ):
         super().__init__()
 
         self.meta = meta
         self.heap_file = heap_file
+        self.heap = heap_file
         self.key_column = key_column
+        self.page_size = page_size
         self.index_path = index_path
-
+        self.index_path = index_path
         self.bucket_capacity = bucket_capacity
-        self.global_depth = global_depth
 
+        self.global_depth = 1
         self.directory: List[HashBucket] = []
         self.buckets: Dict[int, HashBucket] = {}
         self.next_bucket_id = 0
@@ -367,10 +373,7 @@ class ExtendibleHash:
         self.bucket_splits = 0
         self.bucket_merges = 0
         self.directory_doublings = 0
-        self.directory_shrinks = 0
-
-        self.page_reads = 0
-        self.page_writes = 0
+        self.directory_shrinks = 0  
 
 
     # INICIALIZACIÓN
@@ -399,15 +402,32 @@ class ExtendibleHash:
 
     def open(self):
         """
-        Abre un índice hash existente desde disco.
+        Abre un índice Hash existente desde disco.
         """
-        pass
+        if self.is_open:
+            return
 
+        if not os.path.exists(self.index_path):
+            raise FileNotFoundError(
+                f"No existe el índice Hash: {self.index_path}"
+            )
+
+        self._read_header()
+        self._read_all_buckets()
+
+        self._validate_directory()
+        self._validate_buckets()
+        self._validate_local_depths()
+        self._validate_entries()
+
+        self.is_open = True
+        self.is_dirty = False
 
     def close(self):
         """
         Guarda cambios y cierra el índice.
         """
+
         if not self.is_open:
             return
 
@@ -419,42 +439,84 @@ class ExtendibleHash:
         """
         Escribe en disco los cambios pendientes.
         """
+
         if not self.is_open:
             return
 
         if not self.is_dirty:
             return
 
-        # Pendiente: implementar persistencia en disco
+        self._write_header()
+        self._write_directory()
+        self._write_all_buckets()
+
         self.is_dirty = False
+
+
+    @staticmethod
     def bulk_load(
-        self,
+        table_meta: TableMetadata,
+        heap: HeapFile,
+        key_column: str,
+        page_size: int,
         source_path: str,
+        index_path: str,
         delimiter: str = ','
-    ) -> None:
+    ) -> "ExtendibleHash":
 
-        if not self.directory:
-            self.create()
+        index = ExtendibleHash(
+            meta=table_meta,
+            key_column=key_column,
+            heap_file=heap,
+            page_size=page_size,
+            index_path=index_path
+        )
 
-        records_with_rids = self.heap_file.bulk_insert_with_rids(
-            self.heap_file._csv_record_generator(
+        index.create()
+
+        records_with_rids = heap.bulk_insert_with_rids(
+            heap._csv_record_generator(
                 source_path,
                 delimiter
             ),
             reset=True
         )
 
-        key_idx = self.meta.col_index(
-            self.key_column
+        key_idx = table_meta.col_index(
+            key_column
         )
 
         for record, rid in records_with_rids:
-            key = self.meta.normalize_value(
-                self.key_column,
+
+            key = table_meta.normalize_value(
+                key_column,
                 record[key_idx]
             )
 
-            self.insert(key, rid)
+            inserted = index.insert(
+                key,
+                rid
+            )
+
+            if not inserted:
+                if table_meta.is_unique_column(key_column):
+                    raise ValueError(
+                        f"Clave duplicada en columna UNIQUE "
+                        f"'{key_column}': {key}"
+                    )
+
+        index.flush()
+
+        print("Índice Hash creado correctamente")
+        print(f"Tabla: {table_meta.table_name}")
+        print(f"Columna: {key_column}")
+        print(f"Archivo: {index_path}")
+        print(f"Existe: {os.path.exists(index_path)}")
+        print(f"Entradas: {index.count()}")
+        print(f"Buckets: {len(index.buckets)}")
+        print(f"Global Depth: {index.global_depth}")
+
+        return index
     # HASH
     
 
@@ -464,18 +526,49 @@ class ExtendibleHash:
         depth: Optional[int] = None
     ) -> int:
         """
-        Calcula el hash utilizando los bits necesarios.
+        Calcula un hash determinista utilizando los bits necesarios.
         """
+
         if depth is None:
             depth = self.global_depth
 
-        # Convertimos la clave en un valor entero
         if isinstance(key, int):
             value = key
-        else:
-            value = hash(key)
 
-        # Usamos solamente los 'depth' bits menos significativos
+        elif isinstance(key, float):
+            packed = struct.pack("d", float(key))
+            value = int.from_bytes(
+                packed,
+                byteorder="little",
+                signed=False
+            )
+
+        elif isinstance(key, str):
+            digest = hashlib.sha256(
+                key.encode("utf-8")
+            ).digest()
+
+            value = int.from_bytes(
+                digest,
+                byteorder="big",
+                signed=False
+            )
+
+        elif isinstance(key, bytes):
+            digest = hashlib.sha256(key).digest()
+
+            value = int.from_bytes(
+                digest,
+                byteorder="big",
+                signed=False
+            )
+
+        else:
+            raise TypeError(
+                f"Tipo de clave no soportado: {type(key).__name__}"
+            )
+
+        # Usamos solamente los depth bits menos significativos
         mask = (1 << depth) - 1
 
         return value & mask
@@ -546,6 +639,7 @@ class ExtendibleHash:
         bucket_id: int
     ):
         self.buckets.pop(bucket_id, None)
+        self.is_dirty = True
     # DIRECTORY
 
     def _initialize_directory(self):
@@ -643,13 +737,37 @@ class ExtendibleHash:
         self,
         key: Key,
         rid: RID
-    ) -> None:
+    ) -> bool:
         """
-        Inserta:
-            key -> RID
+        Inserta una clave asociada a un RID.
+
+        Retorna:
+            False si la columna es UNIQUE y la clave ya existe.
+            True si la entrada fue insertada.
         """
-        entry = HashEntry(key, rid)
+        key = self.meta.normalize_value(
+            self.key_column,
+            key
+        )
+
+        is_unique = self.meta.is_unique_column(
+            self.key_column
+        )
+
+        if is_unique:
+            existing = self.search_all_entries(key)
+
+            if existing:
+                return False
+
+        entry = HashEntry(
+            key,
+            rid
+        )
+
         self.insert_entry(entry)
+
+        return True
 
 
     def insert_entry(
@@ -668,9 +786,7 @@ class ExtendibleHash:
 
         bucket = self._get_bucket(entry.key)
 
-        # --------------------------------------------------
         # Si ya hay espacio, insertamos directamente
-        # --------------------------------------------------
 
         if bucket.has_space():
 
@@ -685,9 +801,7 @@ class ExtendibleHash:
 
             return
 
-        # --------------------------------------------------
         # Bucket lleno
-        # --------------------------------------------------
 
         max_attempts = 20
 
@@ -710,9 +824,7 @@ class ExtendibleHash:
 
                 return
 
-            # --------------------------------------------------
             # Intentar split
-            # --------------------------------------------------
 
             old_size = bucket.size()
             old_capacity = bucket.capacity
@@ -720,15 +832,13 @@ class ExtendibleHash:
 
             self._split_bucket(bucket)
 
-            # --------------------------------------------------
+            
             # Obtener nuevamente el bucket
-            # --------------------------------------------------
-
             bucket = self._get_bucket(entry.key)
 
-            # --------------------------------------------------
+            
             # Si ahora hay espacio, insertar
-            # --------------------------------------------------
+            
 
             if bucket.has_space():
 
@@ -743,9 +853,8 @@ class ExtendibleHash:
 
                 return
 
-            # --------------------------------------------------
+            
             # El split no consiguió liberar espacio
-            # --------------------------------------------------
 
             """
             Esto puede ocurrir cuando existen muchas entradas
@@ -786,9 +895,9 @@ class ExtendibleHash:
                     flush=True
                 )
 
-        # --------------------------------------------------
+        
         # Protección contra ciclo infinito
-        # --------------------------------------------------
+    
 
         raise RuntimeError(
             "No fue posible insertar la entrada después de "
@@ -820,68 +929,40 @@ class ExtendibleHash:
     ) -> HashBucket:
         """
         Divide un bucket lleno.
-
         Si las entradas pueden separarse mediante el hash,
         se realiza un split normal.
-
-        Si todas las entradas tienen la misma distribución de hash
-        y no pueden separarse, se evita realizar splits infinitos.
-        Esto es importante para índices sobre columnas con muchos
-        valores repetidos, como Age.
+        Si todas las entradas terminan en el mismo bucket,
+        se evita realizar splits infinitos.
         """
 
-        # --------------------------------------------------
         # 1. Si LD == GD, primero duplicamos el directorio
-        # --------------------------------------------------
-
         if bucket.local_depth == self.global_depth:
             self._double_directory()
 
-        # --------------------------------------------------
         # 2. Guardamos las entradas originales
-        # --------------------------------------------------
-
         old_entries = bucket.entries.copy()
 
-        # --------------------------------------------------
-        # 3. Calculamos la nueva profundidad local
-        # --------------------------------------------------
-
+        # 3. Nueva profundidad local
         new_local_depth = bucket.local_depth + 1
 
-        # --------------------------------------------------
-        # 4. Creamos temporalmente el nuevo bucket
-        # --------------------------------------------------
-
+        # 4. Creamos el nuevo bucket
         new_bucket = self._create_bucket(
             new_local_depth
         )
 
-        # --------------------------------------------------
         # 5. Aumentamos LD del bucket original
-        # --------------------------------------------------
-
         bucket.local_depth = new_local_depth
 
-        # --------------------------------------------------
         # 6. Actualizamos el directorio
-        # --------------------------------------------------
-
         self._update_directory_after_split(
             bucket,
             new_bucket
         )
 
-        # --------------------------------------------------
         # 7. Vaciamos el bucket original
-        # --------------------------------------------------
-
         bucket.clear()
 
-        # --------------------------------------------------
-        # 8. Intentamos redistribuir
-        # --------------------------------------------------
-
+        # 8. Redistribuimos las entradas
         bucket_entries = []
         new_bucket_entries = []
 
@@ -898,61 +979,38 @@ class ExtendibleHash:
                 new_bucket_entries.append(entry)
 
             else:
-                # Seguridad:
-                # si el directorio apunta a otro bucket,
-                # usamos el bucket correspondiente.
                 target_bucket.entries.append(entry)
 
-        # --------------------------------------------------
         # 9. Comprobamos si realmente hubo separación
-        # --------------------------------------------------
-
         if (
             len(bucket_entries) == len(old_entries)
             or
             len(new_bucket_entries) == len(old_entries)
         ):
-            """
-            Todas las entradas terminaron en el mismo bucket.
-
-            Esto ocurre cuando tenemos muchas claves repetidas,
-            por ejemplo:
-
-                Age = 25
-                Age = 25
-                Age = 25
-                ...
-
-            Como el hash depende de la key, todas producen
-            exactamente el mismo hash.
-
-            En ese caso NO podemos seguir dividiendo el bucket.
-            """
-
-            # Restauramos todas las entradas en el bucket original.
+            # Restauramos las entradas
             bucket.clear()
 
             for entry in old_entries:
                 bucket.entries.append(entry)
 
-            # Eliminamos el bucket que no se pudo utilizar.
+            # Eliminamos el bucket que no se pudo utilizar
             self._remove_bucket(
                 new_bucket.bucket_id
             )
 
             # Restauramos las referencias del directorio
-            # que apuntaban al nuevo bucket.
             for i, directory_bucket in enumerate(
                 self.directory
             ):
                 if directory_bucket is new_bucket:
                     self.directory[i] = bucket
 
-            # El split realmente no produjo una separación.
-            self.bucket_splits -= 1
+            # No incrementamos ni decrementamos
+            # bucket_splits porque el split no tuvo éxito
 
-            # Aumentamos temporalmente la capacidad para permitir
-            # múltiples registros con la misma key.
+            # Aumentamos temporalmente la capacidad
+            # para permitir múltiples registros con
+            # la misma key
             if bucket.capacity <= len(bucket.entries):
                 bucket.capacity = max(
                     bucket.capacity * 2,
@@ -963,20 +1021,14 @@ class ExtendibleHash:
 
             return bucket
 
-        # --------------------------------------------------
         # 10. Insertamos las entradas redistribuidas
-        # --------------------------------------------------
-
         for entry in bucket_entries:
             bucket.entries.append(entry)
 
         for entry in new_bucket_entries:
             new_bucket.entries.append(entry)
 
-        # --------------------------------------------------
         # 11. Verificación de seguridad
-        # --------------------------------------------------
-
         total_after = (
             len(bucket.entries)
             +
@@ -990,10 +1042,7 @@ class ExtendibleHash:
                 f"después={total_after}"
             )
 
-        # --------------------------------------------------
         # 12. Estadísticas
-        # --------------------------------------------------
-
         self.bucket_splits += 1
         self.is_dirty = True
 
@@ -1058,13 +1107,18 @@ class ExtendibleHash:
         """
         Busca una clave y devuelve un RID.
         """
+
+        key = self.meta.normalize_value(
+            self.key_column,
+            key
+        )
+
         entry = self.search_entry(key)
 
         if entry is None:
             return None
 
         return entry.rid
-
 
     def search_entry(
         self,
@@ -1089,6 +1143,11 @@ class ExtendibleHash:
         """
         Devuelve todos los RIDs asociados a una clave.
         """
+        key = self.meta.normalize_value(
+            self.key_column,
+            key
+        )
+
         entries = self.search_all_entries(key)
 
         return [entry.rid for entry in entries]
@@ -1107,6 +1166,24 @@ class ExtendibleHash:
 
         return bucket.find_all(key)
 
+    def range_search(self, *args, **kwargs):
+        """
+        HASH no soporta búsquedas por rango.
+        """
+        raise NotImplementedError(
+            "Los índices HASH no soportan búsquedas por rango"
+        )
+
+    def range_search_records(
+        self,
+        begin_key: Key | None,
+        end_key: Key | None,
+        include_begin: bool = True,
+        include_end: bool = True
+    ) -> List[CleanRecord]:
+        raise NotImplementedError(
+            "Los índices HASH no soportan búsquedas por rango"
+        )
     
     # SEARCH + HEAPFILE
     
@@ -1180,43 +1257,85 @@ class ExtendibleHash:
         self,
         key: Key,
         rid: Optional[RID] = None
-    ) -> bool:
+    ) -> Optional[RID]:
         """
         Elimina una entrada key -> RID.
+
+        Si rid es None, elimina la primera entrada
+        asociada a la key.
+
+        Si rid tiene valor, elimina exactamente
+        la entrada key + rid.
+
+        Retorna:
+            RID eliminado si existe.
+            None si no se encontró.
         """
+
+        key = self.meta.normalize_value(
+            self.key_column,
+            key
+        )
+
         bucket = self._get_bucket(key)
 
-        if not bucket.remove(key, rid):
-            return False
+        target_rid = None
+
+        for entry in bucket.entries:
+            if entry.key != key:
+                continue
+
+            if rid is not None and entry.rid != rid:
+                continue
+
+            target_rid = entry.rid
+            break
+
+        if target_rid is None:
+            return None
+
+        if not bucket.remove(key, target_rid):
+            return None
 
         self.deletes += 1
         self.is_dirty = True
 
-        return True
+        return target_rid
 
 
     def delete_all(
         self,
         key: Key
-    ) -> int:
+    ) -> List[RID]:
         """
-        Elimina todas las entradas asociadas a key.
-        """
-        bucket = self._get_bucket(key)
+        Elimina todas las entradas asociadas a una clave.
 
+        Retorna:
+            Lista de RIDs eliminados.
+        """
+
+        key = self.meta.normalize_value(
+            self.key_column,
+            key
+        )
+
+        bucket = self._get_bucket(key)
         entries = bucket.find_all(key)
 
         if not entries:
-            return 0
+            return []
 
-        # Eliminamos todas las entradas de esa clave.
+        deleted_rids = []
+
         for entry in entries:
-            bucket.remove(entry.key, entry.rid)
+            if bucket.remove(entry.key, entry.rid):
+                deleted_rids.append(entry.rid)
 
-        self.deletes += len(entries)
-        self.is_dirty = True
+        if deleted_rids:
+            self.deletes += len(deleted_rids)
+            self.is_dirty = True
 
-        return len(entries)
+        return deleted_rids
 
     # MERGE
     def _can_merge(
@@ -1402,6 +1521,26 @@ class ExtendibleHash:
                     return deleted
 
         return False
+    
+    def delete_records(
+        self,
+        key: Key
+    ) -> List[CleanRecord]:
+
+        rids = self.delete_all(key)
+
+        records = []
+
+        for rid in rids:
+            record = self.heap_file.read(rid)
+
+            if record is None:
+                continue
+
+            clean_record = self.meta.clean_tuple(record)
+            records.append(clean_record)
+
+        return records
 
 
     def update_record(
@@ -1428,26 +1567,56 @@ class ExtendibleHash:
 
     # BULK LOAD
 
-    def build_from_storage(self):
-        """
-        Construye el índice recorriendo todos los
-        registros existentes del HeapFile.
-        """
+    @staticmethod
+    def build_from_storage(
+        table_meta,
+        heap,
+        key_column,
+        page_size,
+        index_path
+    ) -> "ExtendibleHash":
 
-        self.create()
+        index = ExtendibleHash(
+            meta=table_meta,
+            key_column=key_column,
+            heap_file=heap,
+            page_size=page_size,
+            index_path=index_path
+        )
 
-        column_index = self.meta.col_index(self.key_column)
+        index.create()
 
-        iterator = self.heap_file._iter_active_records()
+        column_index = table_meta.col_index(
+            key_column
+        )
 
-        for rid, record in iterator:
-            key = self.meta.normalize_value(
-                self.key_column,
-                record[column_index]
-            )
+        is_unique = table_meta.is_unique_column(
+            key_column
+        )
 
-            self.insert(key, rid)
+        for page_records in heap.iter_pages_with_records():
 
+            for rid, record in page_records:
+
+                key = table_meta.normalize_value(
+                    key_column,
+                    record[column_index]
+                )
+
+                inserted = index.insert(
+                    key,
+                    rid
+                )
+
+                if not inserted and is_unique:
+                    raise ValueError(
+                        f"Clave duplicada en columna UNIQUE: {key}"
+                    )
+
+        index.flush()
+
+        return index
+    
     def bulk_insert(
         self,
         entries: List[Tuple[Key, RID]]
@@ -1459,94 +1628,474 @@ class ExtendibleHash:
 
         for key, rid in entries:
             self.insert(key, rid)
-    # PERSISTENCIA
+
+    def rebuild_from_storage(self) -> None:
+        """
+        Reconstruye el índice recorriendo nuevamente
+        todos los registros existentes del HeapFile.
+        """
+
+        self.create()
+
+        column_index = self.meta.col_index(
+            self.key_column
+        )
+
+        is_unique = self.meta.is_unique_column(
+            self.key_column
+        )
+
+        for rid, record in self.heap_file.iter_pages_with_records():
+
+            key = self.meta.normalize_value(
+                self.key_column,
+                record[column_index]
+            )
+
+            inserted = self.insert(
+                key,
+                rid
+            )
+
+            if not inserted and is_unique:
+                raise ValueError(
+                    f"Clave duplicada en columna UNIQUE: {key}"
+                )
+
+        self.is_dirty = True
+
+    #PERSISTENCIA
     def _write_header(self):
         """
-        Escribe la información principal del índice.
+        Escribe el header binario del índice Hash.
         """
-        import json
 
-        data = {
-            "global_depth": self.global_depth,
-            "bucket_capacity": self.bucket_capacity,
-            "next_bucket_id": self.next_bucket_id
-        }
+        MAGIC = b"EXTH"
+        VERSION = 1
+        HEADER_FORMAT = "<4sIIIIIII"
 
-        with open(self.index_path, "w", encoding="utf-8") as f:
-            json.dump(data, f)
+        bucket_count = len(self.buckets)
+        entry_count = self.entry_count
+
+        with open(self.index_path, "wb") as f:
+            f.write(
+                struct.pack(
+                    HEADER_FORMAT,
+                    MAGIC,
+                    VERSION,
+                    self.page_size,
+                    self.bucket_capacity,
+                    self.global_depth,
+                    self.next_bucket_id,
+                    bucket_count,
+                    entry_count
+                )
+            )
+
+        self.page_writes += 1
 
 
     def _read_header(self):
         """
-        Lee la información principal del índice.
+        Lee y valida el header binario del índice Hash.
         """
-        import json
 
-        with open(self.index_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        MAGIC = b"EXTH"
+        VERSION = 1
+        HEADER_FORMAT = "<4sIIIIIII"
 
-        self.global_depth = data["global_depth"]
-        self.bucket_capacity = data["bucket_capacity"]
-        self.next_bucket_id = data["next_bucket_id"]
+        with open(self.index_path, "rb") as f:
+            header_size = struct.calcsize(HEADER_FORMAT)
 
+            data = f.read(header_size)
+
+            if len(data) != header_size:
+                raise ValueError(
+                    "Header del índice Hash incompleto"
+                )
+
+            self.page_reads += 1
+
+            (
+                magic,
+                version,
+                page_size,
+                bucket_capacity,
+                global_depth,
+                next_bucket_id,
+                bucket_count,
+                entry_count
+            ) = struct.unpack(
+                HEADER_FORMAT,
+                data
+            )
+
+            if magic != MAGIC:
+                raise ValueError(
+                    "Magic inválido para el índice Hash"
+                )
+
+            if version != VERSION:
+                raise ValueError(
+                    f"Versión no soportada: {version}"
+                )
+
+            if page_size != self.page_size:
+                raise ValueError(
+                    f"page_size incompatible: archivo={page_size}, "
+                    f"actual={self.page_size}"
+                )
+
+            self.bucket_capacity = bucket_capacity
+            self.global_depth = global_depth
+            self.next_bucket_id = next_bucket_id
+
+            directory_size_data = f.read(
+                struct.calcsize("<I")
+            )
+
+            if len(directory_size_data) != struct.calcsize("<I"):
+                raise ValueError(
+                    "Directorio del índice Hash incompleto"
+                )
+
+            directory_size = struct.unpack(
+                "<I",
+                directory_size_data
+            )[0]
+
+            self._directory_bucket_ids = []
+
+            for _ in range(directory_size):
+                bucket_id_data = f.read(
+                    struct.calcsize("<I")
+                )
+
+                if len(bucket_id_data) != struct.calcsize("<I"):
+                    raise ValueError(
+                        "ID de bucket incompleto en el directorio"
+                    )
+
+                bucket_id = struct.unpack(
+                    "<I",
+                    bucket_id_data
+                )[0]
+
+                self._directory_bucket_ids.append(bucket_id)
+
+            self.page_reads += 1
+
+            self._stored_bucket_count = bucket_count
+            self._stored_entry_count = entry_count
 
     def _write_directory(self):
         """
-        Escribe el directorio del índice.
+        Actualiza los IDs de buckets almacenados en el directorio.
         """
-        import json
 
-        data = self._serialize_directory()
+        HEADER_FORMAT = "<4sIIIIIII"
 
-        with open(self.index_path, "a", encoding="utf-8") as f:
-            f.write("\n")
-            json.dump(data, f)
+        with open(self.index_path, "r+b") as f:
+            header_size = struct.calcsize(HEADER_FORMAT)
+
+            # Saltar el header fijo
+            f.seek(header_size)
+
+            # Escribir tamaño del directorio
+            f.write(
+                struct.pack(
+                    "<I",
+                    len(self.directory)
+                )
+            )
+
+            # Escribir los IDs de los buckets
+            for bucket in self.directory:
+                f.write(
+                    struct.pack(
+                        "<I",
+                        bucket.bucket_id
+                    )
+                )
+
+        self.page_writes += 1
 
 
     def _read_directory(self):
         """
-        Lee el directorio del índice.
+        Lee el directorio del índice desde el archivo binario.
         """
-        # La implementación completa depende del formato final
-        # que utilicemos para almacenar header, directory y buckets.
-        pass
+
+        directory_size_data = struct.calcsize("<I")
+
+        with open(self.index_path, "rb") as f:
+            header_size = struct.calcsize("<4sIIIIIII")
+
+            # Ir al inicio del directorio
+            f.seek(header_size)
+
+            data = f.read(directory_size_data)
+
+            if len(data) != directory_size_data:
+                raise ValueError("Directorio del índice Hash incompleto")
+
+            directory_size = struct.unpack("<I", data)[0]
+
+            self._directory_bucket_ids = []
+
+            for _ in range(directory_size):
+                data = f.read(struct.calcsize("<I"))
+
+                if len(data) != struct.calcsize("<I"):
+                    raise ValueError(
+                        "ID de bucket incompleto en el directorio"
+                    )
+
+                bucket_id = struct.unpack("<I", data)[0]
+                self._directory_bucket_ids.append(bucket_id)
 
 
-    def _write_bucket(
-        self,
-        bucket: HashBucket
-    ):
+    def _write_bucket(self, bucket: HashBucket):
         """
-        Escribe un bucket en disco.
+        Escribe un bucket en formato binario.
         """
-        import json
 
-        with open(
-            self.index_path,
-            "a",
-            encoding="utf-8"
-        ) as f:
-            f.write("\n")
-            json.dump(bucket.serialize(), f)
+        with open(self.index_path, "ab") as f:
+
+            f.write(
+                struct.pack(
+                    "<I",
+                    bucket.bucket_id
+                )
+            )
+
+            f.write(
+                struct.pack(
+                    "<I",
+                    bucket.local_depth
+                )
+            )
+
+            f.write(
+                struct.pack(
+                    "<I",
+                    len(bucket.entries)
+                )
+            )
+
+            for entry in bucket.entries:
+
+                key = entry.key
+
+                if isinstance(key, int):
+                    key_type = 1
+                    key_bytes = struct.pack("<q", key)
+
+                elif isinstance(key, float):
+                    key_type = 2
+                    key_bytes = struct.pack("<d", key)
+
+                elif isinstance(key, bytes):
+                    key_type = 3
+                    key_bytes = key
+
+                elif isinstance(key, str):
+                    key_type = 3
+                    key_bytes = key.encode("utf-8")
+
+                else:
+                    raise TypeError(
+                        f"Tipo de key no soportado: {type(key).__name__}"
+                    )
+
+                f.write(
+                    struct.pack(
+                        "<B",
+                        key_type
+                    )
+                )
+
+                f.write(
+                    struct.pack(
+                        "<I",
+                        len(key_bytes)
+                    )
+                )
+
+                f.write(key_bytes)
+
+                page_id, slot_id = entry.rid
+
+                f.write(
+                    struct.pack(
+                        "<II",
+                        page_id,
+                        slot_id
+                    )
+                )
+
+        self.page_writes += 1
 
 
-    def _read_bucket(
-        self,
-        bucket_id: int
-    ) -> HashBucket:
+    def _read_bucket(self, bucket_id: int) -> HashBucket:
         """
-        Lee un bucket específico desde disco.
+        Lee un bucket específico desde el archivo binario.
         """
-        # La implementación completa depende del formato final
-        # de persistencia.
-        bucket = self._get_bucket_by_id(bucket_id)
+        with open(self.index_path, "rb") as f:
 
-        if bucket is None:
+            header_size = struct.calcsize("<4sIIIIIII")
+
+            # Saltar header
+            f.seek(header_size)
+
+            # Saltar directorio
+            directory_size_data = f.read(
+                struct.calcsize("<I")
+            )
+
+            if len(directory_size_data) != struct.calcsize("<I"):
+                raise ValueError("Directorio incompleto")
+
+            directory_size = struct.unpack(
+                "<I",
+                directory_size_data
+            )[0]
+
+            f.seek(
+                directory_size * struct.calcsize("<I"),
+                1
+            )
+
+            # Recorrer los buckets
+            while True:
+
+                bucket_header = f.read(
+                    struct.calcsize("<III")
+                )
+
+                if not bucket_header:
+                    break
+
+                if len(bucket_header) != struct.calcsize("<III"):
+                    raise ValueError("Bucket incompleto")
+
+                stored_bucket_id, local_depth, entry_count = struct.unpack(
+                    "<III",
+                    bucket_header
+                )
+
+                entries = []
+
+                for _ in range(entry_count):
+
+                    # Leer tipo de key
+                    key_type_data = f.read(
+                        struct.calcsize("<B")
+                    )
+
+                    if len(key_type_data) != struct.calcsize("<B"):
+                        raise ValueError("Tipo de key incompleto")
+
+                    key_type = struct.unpack(
+                        "<B",
+                        key_type_data
+                    )[0]
+
+                    # Leer longitud de key
+                    key_length_data = f.read(
+                        struct.calcsize("<I")
+                    )
+
+                    if len(key_length_data) != struct.calcsize("<I"):
+                        raise ValueError("Longitud de key incompleta")
+
+                    key_length = struct.unpack(
+                        "<I",
+                        key_length_data
+                    )[0]
+
+                    # Leer datos de key
+                    key_data = f.read(key_length)
+
+                    if len(key_data) != key_length:
+                        raise ValueError(
+                            "Datos de key incompletos"
+                        )
+
+                    # Reconstruir key según su tipo
+                    if key_type == 1:
+                        if key_length != struct.calcsize("<q"):
+                            raise ValueError(
+                                "Tamaño inválido para key INT"
+                            )
+
+                        key = struct.unpack(
+                            "<q",
+                            key_data
+                        )[0]
+
+                    elif key_type == 2:
+                        if key_length != struct.calcsize("<d"):
+                            raise ValueError(
+                                "Tamaño inválido para key FLOAT"
+                            )
+
+                        key = struct.unpack(
+                            "<d",
+                            key_data
+                        )[0]
+
+                    elif key_type == 3:
+                        key = key_data
+
+                    else:
+                        raise ValueError(
+                            f"Tipo de key desconocido: {key_type}"
+                        )
+
+                    # Leer RID
+                    rid_data = f.read(
+                        struct.calcsize("<II")
+                    )
+
+                    if len(rid_data) != struct.calcsize("<II"):
+                        raise ValueError("RID incompleto")
+
+                    page_id, slot_id = struct.unpack(
+                        "<II",
+                        rid_data
+                    )
+
+                    rid = RID(
+                        page_id=page_id,
+                        slot_id=slot_id
+                    )
+
+                    entries.append(
+                        HashEntry(
+                            key=key,
+                            rid=rid
+                        )
+                    )
+
+                if stored_bucket_id == bucket_id:
+
+                    bucket = HashBucket(
+                        bucket_id=stored_bucket_id,
+                        local_depth=local_depth,
+                        capacity=self.bucket_capacity
+                    )
+
+                    bucket.entries = entries
+
+                    self.page_reads += 1
+
+                    return bucket
+
             raise KeyError(
                 f"Bucket {bucket_id} no existe"
             )
-
-        return bucket
+            
 
 
     def _write_all_buckets(self):
@@ -1556,15 +2105,176 @@ class ExtendibleHash:
         for bucket in self.buckets.values():
             self._write_bucket(bucket)
 
-
     def _read_all_buckets(self):
         """
-        Reconstruye todos los buckets.
+        Reconstruye todos los buckets desde el archivo binario.
         """
-        # Los buckets se reconstruirán cuando implementemos
-        # el formato definitivo de lectura.
-        pass
+        with open(self.index_path, "rb") as f:
+            header_size = struct.calcsize("<4sIIIIIII")
 
+            # Saltar header
+            f.seek(header_size)
+
+            # Leer tamaño del directorio
+            directory_size_data = f.read(
+                struct.calcsize("<I")
+            )
+
+            if len(directory_size_data) != struct.calcsize("<I"):
+                raise ValueError("Directorio incompleto")
+
+            directory_size = struct.unpack(
+                "<I",
+                directory_size_data
+            )[0]
+
+            # Saltar IDs del directorio
+            f.seek(
+                directory_size * struct.calcsize("<I"),
+                1
+            )
+
+            self.buckets = {}
+
+            # Leer todos los buckets
+            for _ in range(self._stored_bucket_count):
+
+                bucket_header = f.read(
+                    struct.calcsize("<III")
+                )
+
+                if len(bucket_header) != struct.calcsize("<III"):
+                    raise ValueError("Bucket incompleto")
+
+                bucket_id, local_depth, entry_count = struct.unpack(
+                    "<III",
+                    bucket_header
+                )
+
+                bucket = HashBucket(
+                    bucket_id=bucket_id,
+                    local_depth=local_depth,
+                    capacity=self.bucket_capacity
+                )
+
+                for _ in range(entry_count):
+
+                    # Leer tipo de key
+                    key_type_data = f.read(
+                        struct.calcsize("<B")
+                    )
+
+                    if len(key_type_data) != struct.calcsize("<B"):
+                        raise ValueError(
+                            "Tipo de key incompleto"
+                        )
+
+                    key_type = struct.unpack(
+                        "<B",
+                        key_type_data
+                    )[0]
+
+                    # Leer longitud de key
+                    key_length_data = f.read(
+                        struct.calcsize("<I")
+                    )
+
+                    if len(key_length_data) != struct.calcsize("<I"):
+                        raise ValueError(
+                            "Longitud de key incompleta"
+                        )
+
+                    key_length = struct.unpack(
+                        "<I",
+                        key_length_data
+                    )[0]
+
+                    # Leer datos de key
+                    key_data = f.read(key_length)
+
+                    if len(key_data) != key_length:
+                        raise ValueError(
+                            "Key incompleta"
+                        )
+
+                    # Reconstruir key
+                    if key_type == 1:
+
+                        if key_length != struct.calcsize("<q"):
+                            raise ValueError(
+                                "Tamaño inválido para key INT"
+                            )
+
+                        key = struct.unpack(
+                            "<q",
+                            key_data
+                        )[0]
+
+                    elif key_type == 2:
+
+                        if key_length != struct.calcsize("<d"):
+                            raise ValueError(
+                                "Tamaño inválido para key FLOAT"
+                            )
+
+                        key = struct.unpack(
+                            "<d",
+                            key_data
+                        )[0]
+
+                    elif key_type == 3:
+
+                        key = key_data
+
+                    else:
+
+                        raise ValueError(
+                            f"Tipo de key desconocido: {key_type}"
+                        )
+
+                    # Leer RID
+                    rid_data = f.read(
+                        struct.calcsize("<II")
+                    )
+
+                    if len(rid_data) != struct.calcsize("<II"):
+                        raise ValueError(
+                            "RID incompleto"
+                        )
+
+                    page_id, slot_id = struct.unpack(
+                        "<II",
+                        rid_data
+                    )
+
+                    # RID en este proyecto es una tupla
+                    rid = (page_id, slot_id)
+
+                    bucket.entries.append(
+                        HashEntry(
+                            key=key,
+                            rid=rid
+                        )
+                    )
+
+                self.buckets[bucket_id] = bucket
+
+                # Se leyó correctamente un bucket
+                self.page_reads += 1
+
+            # Reconstruir el directorio usando los IDs
+            self.directory = []
+
+            for bucket_id in self._directory_bucket_ids:
+
+                bucket = self.buckets.get(bucket_id)
+
+                if bucket is None:
+                    raise KeyError(
+                        f"Bucket {bucket_id} del directorio no existe"
+                    )
+
+                self.directory.append(bucket)
 
     def _serialize_directory(self):
         """
@@ -1787,22 +2497,45 @@ class ExtendibleHash:
 
 
     def _validate_entries(self) -> bool:
+                """
+                Comprueba que las entradas de los buckets
+                sean consistentes.
+                """
+                for bucket in self.buckets.values():
+
+                    for entry in bucket.entries:
+
+                        if entry.key is None:
+                            return False
+
+                        if entry.rid is None:
+                            return False
+
+                return True
+
+
+    def clear(self) -> None:
         """
-        Comprueba que las entradas de los buckets
-        sean consistentes.
+        Elimina todas las entradas del índice Hash.
         """
+
         for bucket in self.buckets.values():
+            bucket.clear()
 
-            for entry in bucket.entries:
+        self.inserts = 0
+        self.deletes = 0
+        self.is_dirty = True
 
-                if entry.key is None:
-                    return False
+    def count(self) -> int:
+        """
+        Devuelve la cantidad total de entradas del índice.
+        """
 
-                if entry.rid is None:
-                    return False
-
-        return True
-
+        return sum(
+            len(bucket.entries)
+            for bucket in self.buckets.values()
+        )
+    
     # PROPIEDADES / INFORMACIÓN
     @property
     def bucket_count(self) -> int:
@@ -1825,7 +2558,7 @@ class ExtendibleHash:
     @property
     def load_factor(self) -> float:
         if self.bucket_count == 0:
-            return 0.0
+            return 0.
 
         total_capacity = self.bucket_count * self.bucket_capacity
 
