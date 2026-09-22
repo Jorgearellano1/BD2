@@ -54,7 +54,7 @@ El Executor no vuelve a validar lo que ya garantizan las etapas anteriores.
 | Parser | sintaxis, tokens y estructura de las sentencias |
 | SemanticVisitor | existencia de tabla/índice/columna, tipos, PRIMARY KEY, UNIQUE, DOUBLE, SEQUENTIAL sin UNIQUE ni FORCE, nombre de índice libre |
 | Planner | aplicabilidad de índices, FORCE, residual, rango solo sobre PRIMARY KEY, `EmptyResultPlan` para predicado falso, plan físico |
-| Executor | estado físico y datos: rutas ocupadas, duplicados reales de PK/UNIQUE, B+Tree existente para `(tabla, columna)`, HASH no soportado, cabecera y tipos inferidos del CSV, consistencia Heap + índices y rollback |
+| Executor | estado físico y datos: rutas ocupadas, duplicados reales de PK/UNIQUE, índice del mismo kind ya existente para `(tabla, columna)`, cabecera y tipos inferidos del CSV, consistencia Heap + índices y rollback |
 
 El Executor no repite comprobaciones de existencia de tabla o columna, de
 compatibilidad de tipos, ni de reglas FORCE o de elección de access path.
@@ -119,7 +119,7 @@ _get_index(nombre)
 ```
 
 El cierre de estructuras es responsabilidad exclusiva del Executor. Un
-`BPlusTree` nunca cierra el `HeapFile` compartido.
+`BPlusTree` o un `ExtendibleHash` nunca cierran el `HeapFile` compartido.
 
 ---
 
@@ -454,8 +454,9 @@ Executor no actualiza índices ni expone RIDs.
 5. si algun insert devuelve False (clave duplicada), deshacer
 ```
 
-`BPlusTree.insert` devuelve `False` cuando la clave ya existe en una columna
-única; no lanza excepción. El Executor comprueba el valor de retorno.
+`BPlusTree.insert` y `ExtendibleHash.insert` devuelven `False` cuando la clave
+ya existe en una columna única; no lanzan excepción. El Executor comprueba el
+valor de retorno.
 
 No se utiliza `insert_record`, porque mezcla Heap e índice y el Executor
 necesita controlar todos los índices de forma atómica.
@@ -554,21 +555,23 @@ entradas del catálogo que se hayan registrado.
 ### 12.2. CREATE INDEX
 
 ```text
-HASH                       -> UnsupportedIndexError
-BTREE ya existente en la
-columna                     -> ExecutorError mencionando el indice actual
+indice del mismo kind ya
+existente en la columna     -> ExecutorError mencionando el indice actual
 archivo destino existente   -> ExecutorError
 ```
 
 Si las validaciones pasan:
 
 ```text
-BPlusTree.build_from_storage(...)
-    -> catalog.add_index(...)
+BTREE -> BPlusTree.build_from_storage(...)
+HASH  -> ExtendibleHash.build_from_storage(...)
+    -> catalog.add_index(IndexMetadata con el kind solicitado)
     -> index_cache
 ```
 
 `CREATE INDEX` no reutiliza, no renombra y no reemplaza índices existentes.
+Se permite un BTREE y un HASH sobre la misma columna; el Planner prefiere HASH
+para igualdad.
 
 ### 12.3. ALTER TABLE ADD UNIQUE
 
@@ -682,7 +685,7 @@ class ExecutionOutput:
 original se hace por `statement_id`. Ante un fallo, `explains` incluye la
 sentencia fallida con `success=False`, `success=False` y `failed_statement_id`
 indica dónde se detuvo el `Program`. `error_type` es el nombre de la clase del
-error (por ejemplo `ExecutorError`, `UnsupportedIndexError`, `PlannerError`).
+error (por ejemplo `ExecutorError`, `PlannerError`).
 
 ---
 
@@ -738,11 +741,8 @@ una sola vez al terminar el `Program` completo. Los índices no cierran el
 
 ```text
 ExecutorError
-    reglas fisicas: ruta ocupada, BTREE existente, PK/UNIQUE duplicadas,
-    archivo de indice existente
-
-UnsupportedIndexError (ExecutorError)
-    indices HASH no soportados
+    reglas fisicas: ruta ocupada, indice del mismo kind ya existente,
+    PK/UNIQUE duplicadas, archivo de indice existente
 
 RollbackError (RuntimeError)
     fallo al revertir una sentencia
@@ -871,7 +871,8 @@ SequentialDeletePlan(predicate = city = 'Lima')
 ```text
 El Executor NO abre almacenamiento para EmptyResultPlan
 El Executor NO usa RIDs en accesos SequentialFile
-El Executor NO usa insert_record ni delete_record de BPlusTree
+El Executor NO usa insert_record ni delete_record de BPlusTree ni de
+ExtendibleHash
 El Executor NO revalida reglas del Parser, SemanticVisitor ni Planner
 El Executor NO introduce costos, estadisticas ni candidatos
 El Executor NO modifica el plan ni crea PlanNode nuevos

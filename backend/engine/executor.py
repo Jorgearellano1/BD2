@@ -50,6 +50,7 @@ from engine.plan import (
 )
 from engine.plan_visitor import PlanVisitor
 from indexes.bplusTree import BPlusTree
+from indexes.ExtendibleHash import ExtendibleHash
 from indexes.index import Index
 from storage.heapFile import HeapFile
 from storage.sequentialFile import SequentialFile
@@ -58,10 +59,6 @@ from storage.storageFile import StorageFile
 
 class ExecutorError(Exception):
     """Error de ejecucion fisica o de consistencia."""
-
-
-class UnsupportedIndexError(ExecutorError):
-    """El tipo de indice solicitado no esta soportado por el Executor."""
 
 
 class RollbackError(RuntimeError):
@@ -383,7 +380,7 @@ class Executor(PlanVisitor[ExecutionValue]):
             "IndexScanPlan",
             lambda: self._measure(
                 index,
-                "BPlusTree",
+                self._index_resource_type(index),
                 node.index,
                 "search",
                 body,
@@ -412,7 +409,7 @@ class Executor(PlanVisitor[ExecutionValue]):
             "IndexRangeScanPlan",
             lambda: self._measure(
                 index,
-                "BPlusTree",
+                self._index_resource_type(index),
                 node.index,
                 "range_search",
                 body,
@@ -438,7 +435,7 @@ class Executor(PlanVisitor[ExecutionValue]):
             "BitmapIndexScanPlan",
             lambda: self._measure(
                 index,
-                "BPlusTree",
+                self._index_resource_type(index),
                 node.index,
                 "search",
                 body,
@@ -470,7 +467,7 @@ class Executor(PlanVisitor[ExecutionValue]):
             "BitmapIndexRangeScanPlan",
             lambda: self._measure(
                 index,
-                "BPlusTree",
+                self._index_resource_type(index),
                 node.index,
                 "range_search",
                 body,
@@ -730,7 +727,7 @@ class Executor(PlanVisitor[ExecutionValue]):
                     key = record[meta.col_index(info.column)]
                     ok = self._measure(
                         index,
-                        "BPlusTree",
+                        self._index_resource_type(index),
                         info.name,
                         "insert",
                         lambda index=index, key=key, rid=rid: index.insert(key, rid),
@@ -788,7 +785,7 @@ class Executor(PlanVisitor[ExecutionValue]):
                         key = record[column_index]
                         self._measure(
                             index,
-                            "BPlusTree",
+                            self._index_resource_type(index),
                             info.name,
                             "delete",
                             lambda index=index, key=key, rid=rid: index.delete(key, rid),
@@ -1074,23 +1071,19 @@ class Executor(PlanVisitor[ExecutionValue]):
         return value
 
     def visit_create_index(self, node: CreateIndexPlan) -> ExecutionValue:
-        if node.index_kind is IndexKind.HASH:
-            raise UnsupportedIndexError(
-                "Los indices HASH no estan soportados por el Executor"
-            )
-
         existing = self.ctx.catalog.find_index(
-            node.table, node.column, IndexKind.BTREE
+            node.table, node.column, node.index_kind
         )
         if existing is not None:
             raise ExecutorError(
-                f"Ya existe un indice BPlusTree '{existing.name}' para la "
-                f"columna '{node.column}' de la tabla '{node.table}'. "
-                f"CREATE INDEX no puede reutilizarlo ni renombrarlo."
+                f"Ya existe un indice {node.index_kind.value} "
+                f"'{existing.name}' para la columna '{node.column}' de la "
+                f"tabla '{node.table}'. CREATE INDEX no puede reutilizarlo "
+                f"ni renombrarlo."
             )
 
         index_path = self.ctx.catalog.index_path(
-            node.table, node.column, IndexKind.BTREE
+            node.table, node.column, node.index_kind
         )
         if os.path.exists(index_path):
             raise ExecutorError(f"El archivo de indice ya existe: {index_path}")
@@ -1099,10 +1092,16 @@ class Executor(PlanVisitor[ExecutionValue]):
         heap = self._get_storage(node.table)
         holder: dict[str, Index | None] = {"index": None}
 
-        def body() -> ExecutionValue:
-            heap_before = self._snapshot(heap)
-            start = perf_counter()
-            index = BPlusTree.build_from_storage(
+        def build_index() -> Index:
+            if node.index_kind is IndexKind.HASH:
+                return ExtendibleHash.build_from_storage(
+                    entry.metadata,
+                    heap,
+                    node.column,
+                    self.ctx.page_size,
+                    index_path,
+                )
+            return BPlusTree.build_from_storage(
                 entry.metadata,
                 heap,
                 node.column,
@@ -1111,12 +1110,21 @@ class Executor(PlanVisitor[ExecutionValue]):
                 sort_buffer_size=self.ctx.sort_buffer_size,
                 level_memory_limit=self.ctx.level_memory_limit,
             )
+
+        def body() -> ExecutionValue:
+            heap_before = self._snapshot(heap)
+            start = perf_counter()
+            index = build_index()
             elapsed = (perf_counter() - start) * 1000.0
             heap_change = self._delta(heap_before, self._snapshot(heap))
-            index_reads = max(0, index.page_reads - heap_change.reads)
-            index_writes = max(0, index.page_writes - heap_change.writes)
+            if node.index_kind is IndexKind.HASH:
+                index_reads = index.page_reads
+                index_writes = index.page_writes
+            else:
+                index_reads = max(0, index.page_reads - heap_change.reads)
+                index_writes = max(0, index.page_writes - heap_change.writes)
             self._record_operation(
-                "BPlusTree",
+                self._index_resource_type(index),
                 node.name,
                 "build",
                 elapsed,
@@ -1142,7 +1150,7 @@ class Executor(PlanVisitor[ExecutionValue]):
             node.name,
             node.table,
             node.column,
-            IndexKind.BTREE,
+            node.index_kind,
             index_path,
         )
         try:
@@ -1264,22 +1272,34 @@ class Executor(PlanVisitor[ExecutionValue]):
             return cached
 
         meta = self.ctx.catalog.get_index(name)
-        if meta.kind is IndexKind.HASH:
-            raise UnsupportedIndexError(
-                f"El indice HASH '{name}' no esta soportado por el Executor"
-            )
-
         entry = self.ctx.catalog.get_table(meta.table)
         heap = self._get_storage(meta.table)
-        index = BPlusTree(
-            entry.metadata,
-            meta.column,
-            heap,
-            self.ctx.page_size,
-            meta.file_path,
-            self.ctx.sort_buffer_size,
-            self.ctx.level_memory_limit,
-        )
+
+        if meta.kind is IndexKind.HASH:
+            index: Index = ExtendibleHash(
+                entry.metadata,
+                meta.column,
+                heap,
+                self.ctx.page_size,
+                meta.file_path,
+            )
+            try:
+                index.open()
+            except FileNotFoundError as exc:
+                raise ExecutorError(
+                    f"No se pudo abrir el indice HASH '{name}': {exc}"
+                ) from exc
+        else:
+            index = BPlusTree(
+                entry.metadata,
+                meta.column,
+                heap,
+                self.ctx.page_size,
+                meta.file_path,
+                self.ctx.sort_buffer_size,
+                self.ctx.level_memory_limit,
+            )
+
         self.ctx.index_cache[name] = index
         return index
 
@@ -1287,7 +1307,7 @@ class Executor(PlanVisitor[ExecutionValue]):
         return [
             info
             for info in self.ctx.catalog.get_table_indexes(table)
-            if info.kind is IndexKind.BTREE
+            if info.kind in (IndexKind.BTREE, IndexKind.HASH)
         ]
 
     def _table_meta(self, table: str) -> TableMetadata:
@@ -1344,6 +1364,10 @@ class Executor(PlanVisitor[ExecutionValue]):
         self.ctx.storage_cache.clear()
 
     # Auxiliares de metadata y esquema
+
+    @staticmethod
+    def _index_resource_type(index: Index) -> str:
+        return type(index).__name__
 
     @staticmethod
     def _canonical_btree_name(table: str, column: str) -> str:
