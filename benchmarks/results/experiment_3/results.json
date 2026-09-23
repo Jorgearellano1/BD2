@@ -1,0 +1,83 @@
+{
+  "experiment": 3,
+  "name": "busquedas por rango",
+  "ranges": [
+    {
+      "selectivity": 0.001,
+      "low": 249751,
+      "high": 250250
+    },
+    {
+      "selectivity": 0.01,
+      "low": 247501,
+      "high": 252500
+    },
+    {
+      "selectivity": 0.05,
+      "low": 237501,
+      "high": 262500
+    },
+    {
+      "selectivity": 0.1,
+      "low": 225001,
+      "high": 275000
+    },
+    {
+      "selectivity": 0.25,
+      "low": 187501,
+      "high": 312500
+    }
+  ],
+  "results": [
+    {
+      "selectivity": 0.001,
+      "rows": 500,
+      "Heap": 13514,
+      "Sequential": 39,
+      "B+ Tree": 19,
+      "Heap_ms": 257.4399000732228,
+      "Sequential_ms": 2.8102999785915017,
+      "B+ Tree_ms": 1.953700091689825
+    },
+    {
+      "selectivity": 0.01,
+      "rows": 5000,
+      "Heap": 13514,
+      "Sequential": 234,
+      "B+ Tree": 163,
+      "Heap_ms": 267.85560010466725,
+      "Sequential_ms": 14.625099953263998,
+      "B+ Tree_ms": 13.940599979832768
+    },
+    {
+      "selectivity": 0.05,
+      "rows": 25000,
+      "Heap": 13514,
+      "Sequential": 1104,
+      "B+ Tree": 804,
+      "Heap_ms": 305.33909995574504,
+      "Sequential_ms": 71.29140000324696,
+      "B+ Tree_ms": 71.50019996333867
+    },
+    {
+      "selectivity": 0.1,
+      "rows": 50000,
+      "Heap": 13514,
+      "Sequential": 2191,
+      "B+ Tree": 1601,
+      "Heap_ms": 372.8321000235155,
+      "Sequential_ms": 192.7530000684783,
+      "B+ Tree_ms": 151.5171000501141
+    },
+    {
+      "selectivity": 0.25,
+      "rows": 125000,
+      "Heap": 13514,
+      "Sequential": 5450,
+      "B+ Tree": 3998,
+      "Heap_ms": 543.045699945651,
+      "Sequential_ms": 392.75589992757887,
+      "B+ Tree_ms": 426.7751999432221
+    }
+  ]
+}

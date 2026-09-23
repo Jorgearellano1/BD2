@@ -383,6 +383,49 @@ class BPlusTree(Index):
         f.write(node.pack())
         self.page_writes += 1
 
+    def stats(self) -> dict:
+        """
+        Metricas reales del arbol construido: fanout (maximo de hijos de los
+        nodos internos recorridos), altura, nodos y entradas del header.
+        """
+        close_after = False
+        if self.file is None:
+            if not os.path.exists(self.filename):
+                raise FileNotFoundError(f"El indice no existe: {self.filename}")
+            f = open(self.filename, 'r+b')
+            close_after = True
+        else:
+            f = self.file
+
+        try:
+            root_ptr, _, total_nodes, total_entries = self._read_header(f)
+
+            height = 0
+            fanout = 0
+            level = [root_ptr]
+            while level:
+                height += 1
+                next_level: list[int] = []
+                for offset in level:
+                    node = self._read_node(f, offset)
+                    if node.node_type == 0:
+                        fanout = max(fanout, len(node.pointers))
+                        next_level.extend(node.pointers)
+                level = next_level
+
+            return {
+                'page_size': self.PAGE_SIZE,
+                'leaf_order': self.LEAF_ORDER,
+                'internal_order': self.INTERNAL_ORDER,
+                'fanout': fanout,
+                'height': height,
+                'total_nodes': total_nodes,
+                'total_entries': total_entries,
+            }
+        finally:
+            if close_after:
+                f.close()
+
     @overload
     def _normalize_key(self, key: None) -> None: ...
 

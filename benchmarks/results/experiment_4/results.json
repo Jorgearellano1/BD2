@@ -1,0 +1,57 @@
+{
+  "experiment": 4,
+  "name": "sensibilidad al tamano de bloque",
+  "page_sizes": [
+    1024,
+    2048,
+    4096,
+    8192
+  ],
+  "query_batch": "1000 igualdades + 5 rangos",
+  "results": [
+    {
+      "page_size": 1024,
+      "fanout": 83,
+      "height": 4,
+      "reads": 31993,
+      "writes": 0,
+      "ms": 722.3716003354639,
+      "rebuild_ms": 7478.980600018986,
+      "rebuild_reads": 131359,
+      "rebuild_writes": 75803
+    },
+    {
+      "page_size": 2048,
+      "fanout": 169,
+      "height": 3,
+      "reads": 17482,
+      "writes": 0,
+      "ms": 747.5829987088218,
+      "rebuild_ms": 5556.83850008063,
+      "rebuild_reads": 65519,
+      "rebuild_writes": 37741
+    },
+    {
+      "page_size": 4096,
+      "fanout": 339,
+      "height": 3,
+      "reads": 10589,
+      "writes": 0,
+      "ms": 728.3571007428691,
+      "rebuild_ms": 5249.285000027157,
+      "rebuild_reads": 31973,
+      "rebuild_writes": 18459
+    },
+    {
+      "page_size": 8192,
+      "fanout": 613,
+      "height": 3,
+      "reads": 7261,
+      "writes": 0,
+      "ms": 774.7090017655864,
+      "rebuild_ms": 5403.944099904038,
+      "rebuild_reads": 15791,
+      "rebuild_writes": 9124
+    }
+  ]
+}

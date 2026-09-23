@@ -1,0 +1,32 @@
+{
+  "experiment": 2,
+  "name": "busquedas puntuales de igualdad",
+  "queries": 1000,
+  "keys_sha256": "18a1c1cc0ff868d759f9606153e53374896b1aa56a3c98111efbf0c616382b27",
+  "summary": {
+    "Heap": {
+      "mean_reads": 13514.0,
+      "std_reads": 0.0,
+      "mean_ms": 701.2591608999064,
+      "std_ms": 153.53944068505277
+    },
+    "Sequential": {
+      "mean_reads": 16.573,
+      "std_reads": 0.5887877376440511,
+      "mean_ms": 0.605923697934486,
+      "std_ms": 1.3962712776175896
+    },
+    "B+ Tree": {
+      "mean_reads": 4.004,
+      "std_reads": 0.063118935352238,
+      "mean_ms": 0.08873260067775846,
+      "std_ms": 0.032907845644475894
+    },
+    "Hash": {
+      "mean_reads": 1.0,
+      "std_reads": 0.0,
+      "mean_ms": 0.015502499998547137,
+      "std_ms": 0.013989920625509661
+    }
+  }
+}

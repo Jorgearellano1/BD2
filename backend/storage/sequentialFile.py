@@ -104,6 +104,7 @@ class _SequentialPages:
         self.filename = os.fspath(filename)
         self.counter = counter if counter is not None else DiskCounter()
         self.auto_reorganize = auto_reorganize
+        self.reorganizations = 0
         self.page_size = page_size
         self.last_metrics = {}
         self.file = None
@@ -531,6 +532,7 @@ class _SequentialPages:
                 os.unlink(temp_path)
 
     def reorganize(self) -> None:
+        self.reorganizations += 1
         start = self._begin()
         self._replace_from_sorted(self.iter_records())
         self._end(start, 'reorganize')
@@ -709,6 +711,10 @@ class SequentialFile(StorageFile):
     @page_reads.setter
     def page_reads(self, value: int) -> None:
         self._counter.disk_reads = value
+
+    @property
+    def reorganizations(self) -> int:
+        return self._pages.reorganizations
 
     @property
     def page_writes(self) -> int:
