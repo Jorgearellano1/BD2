@@ -348,6 +348,7 @@ class HeapFile(StorageFile):
         f = self.file
         f.seek(offset)
         raw = f.read(self.RECORD_SIZE)
+        self.page_reads += 1
 
         next_free, = struct.unpack(self.RECORD_META_FORMAT, raw[:self.RECORD_META_SIZE])
 
