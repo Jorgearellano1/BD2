@@ -178,21 +178,36 @@ recall-latencia del IVF.
 La pestaña **Recomendador** del cliente web usa un dataset real de Craigslist
 (12,000 vehículos, licencia CC0) con imagen, título, descripción, precio,
 categoría y ubicación. Permite subir una foto o escribir una descripción,
-filtrar por precio y cercanía de tienda, y compara BoVW (SIFT + índice
-invertido) con embeddings densos (ResNet-18 + IVF).
+filtrar por precio y cercanía de tienda, elegir el Top-K y compara BoVW
+(SIFT + índice invertido) con embeddings densos (ResNet-18 + IVF).
 
-Preparación:
+El dataset procesado y los pesos ya están en el repositorio
+(`data/datasets/cars/` y `data/models/resnet18.pth`).
+
+### Puesta en marcha (dataset incluido)
 
 ```bash
-curl -L -o data/raw/craigslist/cars.zip   https://www.kaggle.com/api/v1/datasets/download/austinreese/craigslist-carstrucks-data
+pip install -r requirements.txt
 pip install -r requirements-vision.txt
-python benchmarks/vector/build_car_dataset.py --zip data/raw/craigslist/cars.zip
-python benchmarks/vector/load_car_db.py
+python benchmarks/vector/load_car_db.py   # ~3 min, crea vehiculos e indices
 uvicorn main:app --reload
 ```
 
-El detalle de los pasos está en `benchmarks/vector/README.md`. Endpoints:
-`POST /api/recommend`, `GET /api/recommend/samples` y `/media/<imagen>`.
+`storage/` no está commiteado: `load_car_db.py` crea la tabla `vehiculos` y sus
+índices. Solo si quieres regenerar el dataset desde cero:
+
+```bash
+mkdir -p data/raw/craigslist
+curl -L -o data/raw/craigslist/cars.zip   https://www.kaggle.com/api/v1/datasets/download/austinreese/craigslist-carstrucks-data
+python benchmarks/vector/build_car_dataset.py --zip data/raw/craigslist/cars.zip
+python benchmarks/vector/load_car_db.py
+```
+
+El zip queda en `data/raw/`, ignorado por git; el dataset procesado sí está
+commiteado. El detalle de los pasos está en `benchmarks/vector/README.md`.
+Endpoints: `POST /api/recommend`, `GET /api/recommend/samples` y
+`/media/<imagen>`. El Top-K es un máximo (1-20): si los filtros dejan menos
+candidatos, salen menos resultados.
 
 ```bash
 python benchmarks/vector/run_experiment7.py --quick

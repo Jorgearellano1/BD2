@@ -149,17 +149,33 @@ escribe tambien `bovw_codebook.json` y `bovw_manifest.json`. El frontend usa
 
 Dataset real de Craigslist (Kaggle, CC0): 426k vehiculos con imagen, titulo,
 descripcion, precio, categoria y latitud/longitud. Se usa un subconjunto de
-12,000 con imagenes de 256x192.
+12,000 con imagenes de 256x192. El dataset procesado y los pesos ya estan en
+el repo (`data/datasets/cars/` y `data/models/resnet18.pth`).
+
+### Puesta en marcha (dataset incluido)
+
+```bash
+pip install -r requirements.txt
+pip install -r requirements-vision.txt
+python benchmarks/vector/load_car_db.py   # ~3 min, crea vehiculos e indices
+uvicorn main:app --reload
+```
+
+`storage/` no se commitea: `load_car_db.py` crea la tabla `vehiculos` y sus
+indices. El bloque siguiente solo hace falta para regenerar el dataset desde
+cero:
 
 ```bash
 mkdir -p data/raw/craigslist
 curl -L -o data/raw/craigslist/cars.zip \
   https://www.kaggle.com/api/v1/datasets/download/austinreese/craigslist-carstrucks-data
 
-pip install -r requirements-vision.txt
 python benchmarks/vector/build_car_dataset.py --zip data/raw/craigslist/cars.zip
 python benchmarks/vector/load_car_db.py
 ```
+
+El zip queda en `data/raw/`, que esta en `.gitignore`; no se sube. El dataset
+procesado (12,000 imagenes, CSV, BoVW y embeddings) si esta commiteado.
 
 `build_car_dataset.py` descarga las imagenes, entrena el codebook BoVW, extrae
 SIFT y embeddings ResNet-18 y deja todo en `data/datasets/cars/`. Tambien
@@ -182,6 +198,8 @@ uvicorn main:app --reload
 ```
 
 Se puede subir una foto o escribir una descripcion, filtrar por precio y
-ciudad/radio. El resultado muestra BoVW y embeddings en paralelo, con sus
-planes y metricas de I/O. Endpoints: `POST /api/recommend`,
-`GET /api/recommend/samples` y `/media/<imagen>`.
+ciudad/radio y elegir el Top-K (1-20). El resultado muestra BoVW y embeddings
+en paralelo, con la consulta aplicada, tienda/descripcion, planes y metricas
+de I/O. El Top-K es un maximo: si los filtros dejan menos candidatos, salen
+menos. Endpoints: `POST /api/recommend`, `GET /api/recommend/samples` y
+`/media/<imagen>`.
