@@ -2178,3 +2178,67 @@ SequentialRangeScanPlan         -> SequentialFile.range_search(key_column, begin
 SequentialDeletePlan(predicate) -> SequentialFile.delete_all(predicate)
 ```
 
+
+## 25. Modulo vectorial
+
+### 25.1. Entradas
+
+```text
+CREATE TABLE t (... v VECTOR(D) ...) USING HEAP;
+CREATE INDEX idx ON t(v) USING IVF
+    WITH (lists = C, metric = 'L2' | 'COSINE' | 'IP', iterations = k, seed = s);
+SET ivf.probes = p;
+SELECT ..., v <-> '[...]' AS d FROM t [WHERE ...] ORDER BY d ASC LIMIT k;
+```
+
+`<->` es distancia L2, `<=>` es distancia coseno (1 - cos) y `<#>` es producto
+interno. La metrica del indice debe coincidir con el operador de la consulta.
+
+### 25.2. Reglas
+
+```text
+1. Una sola distancia vectorial por SELECT, con alias obligatorio o 'distancia'.
+2. La columna debe ser VECTOR y la tabla HEAP.
+3. ORDER BY puede usar el alias de la distancia o una columna real.
+4. LIMIT se empuja al Top-K del IVF cuando no hay filtro residual ni orden
+   por otra columna.
+5. Con WHERE relacional:
+       indice escalar disponible -> PRE_FILTER (RID permitidos antes del IVF)
+       sin indice escalar         -> POST_FILTER
+6. Sin WHERE relacional: INDEX_ONLY.
+7. Sin indice IVF o FORCE SEQSCAN: SEQ_SCAN con k-NN lineal exacto.
+8. FORCE INDEX(...) solo acepta indices IVF de la misma tabla y columna.
+9. SET ivf.probes se guarda en el ExecutionContext y afecta a las sentencias
+   siguientes del mismo Program.
+```
+
+### 25.3. Planes
+
+```text
+VectorScanPlan(table, column, index, query, operator, top_k,
+               strategy, prefilter)
+    index=None -> escaneo exacto
+    index=nombre -> IVF con probes del contexto
+
+VectorFetchPlan(table, column, query, operator, alias,
+                child, residual, limit)
+    recupera los RID en orden de distancia y aplica post-filtro
+
+VectorProjectPlan(table, columns, alias, position, child)
+    intercala la distancia en la lista de salida
+
+SetPlan(name, value)
+    modifica ivf.probes
+```
+
+### 25.4. Invariantes
+
+```text
+1. PRE_FILTER -> prefilter != None y residual puede ser None
+2. POST_FILTER -> prefilter == None y residual == WHERE relacional completo
+3. INDEX_ONLY -> sin WHERE relacional
+4. SEQ_SCAN -> index == None
+5. top_k != None solo si no hay residual ni ORDER BY por otra columna
+6. VectorFetchPlan siempre recibe VectorScanPlan
+7. La metrica del indice y el operador deben coincidir
+```

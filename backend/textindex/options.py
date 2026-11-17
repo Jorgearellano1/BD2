@@ -2,7 +2,7 @@
 Opciones de  CREATE INDEX ... USING INVERTED WITH (...).
 
     scoring        'TFIDF_COSINE' (unico esquema implementado; BM25 es una
-                   alternativa permitida por el enunciado pero no se incluye)
+                   alternativa no implementada)
     language       'spanish' (defecto) o 'english'
     stemming       'true' / 'false'   (Snowball de NLTK)
     stoplist       'true' / 'false'

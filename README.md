@@ -12,9 +12,10 @@ y Hash extensible, parser SQL propio y ejecución basada en planes.
 pip install -r requirements.txt
 ```
 
-El motor (parser, engine, storage, indexes) usa únicamente la biblioteca
-estándar. El API HTTP (`backend/api/`) requiere `fastapi` y `uvicorn`, ya
-incluidos en `requirements.txt`.
+El motor relacional y el módulo vectorial usan únicamente la biblioteca
+estándar. El módulo textual usa `nltk` para el stemming Snowball y el API HTTP
+requiere `fastapi` y `uvicorn`; todo está incluido en `requirements.txt`.
+`pytest` y `httpx` cubren la suite de pruebas.
 
 ## Estructura
 
@@ -26,7 +27,10 @@ backend/
   engine/           Catalog, Planner, Executor y Session
   storage/          HeapFile, SequentialFile y StorageFile
   indexes/          B+ Tree e interfaz de indices
+  textindex/        indice invertido, BoW y ranking TF-IDF/coseno
+  vectorindex/      vectores, K-Means, IVF, BoVW y metricas ANN
   algorithms/       utilidades de ordenamiento y mezcla
+rtree/              R-Tree persistente en disco
 frontend/
 data/datasets/
 storage/
@@ -121,7 +125,8 @@ Endpoints:
 - `GET /api/tables` -> tablas con `storage`, `primary_key` y `columns`
 - `GET /api/indexes` -> índices con `table`, `column` y `type`
 - `POST /api/query` -> `{"sql": "..."}`; responde por sentencia con `success`,
-  `columns`, `rows`, `affected_rows`, `message`, `error` y `explain` (métricas)
+  `columns`, `rows`, `affected_rows`, `message`, `error` y `explain` (métricas).
+  `explains` incluye el plan y las métricas de todas las sentencias del script.
 
 `POST /api/query` acepta un script completo (varias sentencias) y devuelve la
 misma estructura que la `Session`: ante un fallo incluye `success=false`,
@@ -129,3 +134,52 @@ misma estructura que la `Session`: ante un fallo incluye `success=false`,
 Un lock serializa las peticiones para no mutar el catálogo ni los archivos a la
 vez. El catálogo y los datos quedan en `storage/`; `PAGE_SIZE` (por defecto
 `4096`) configura el tamaño de página.
+
+## Búsqueda vectorial
+
+El tipo `VECTOR(D)` guarda `D` floats dentro del registro. Los índices IVF se
+persisten en un directorio con centroides y listas paginadas, y las consultas
+de similitud usan los operadores `<->` (L2), `<=>` (coseno) y `<#>` (producto
+interno negado). En los tres casos, menor distancia significa mayor similitud.
+
+```sql
+CREATE TABLE multimedia (
+  id INT PRIMARY KEY,
+  categoria CHAR(20),
+  embedding VECTOR(128)
+) USING HEAP;
+
+INSERT INTO multimedia VALUES (1, 'ropa', '[0.12, -0.34, 0.56, ...]');
+
+CREATE INDEX idx_vec ON multimedia(embedding) USING IVF
+  WITH (lists = 100, metric = 'COSINE');
+
+SET ivf.probes = 5;
+
+SELECT id, categoria, embedding <=> '[0.10, -0.30, 0.50, ...]' AS distancia
+FROM multimedia
+WHERE categoria = 'ropa'
+ORDER BY distancia ASC
+LIMIT 5;
+```
+
+El planificador reporta la estrategia (`INDEX_ONLY`, `PRE_FILTER`,
+`POST_FILTER` o `SEQ_SCAN`) y el ejecutor separa las lecturas del IVF de las
+del Heap. `SET ivf.probes` afecta a las sentencias siguientes del mismo
+script, así que conviene enviarlo junto con la consulta. Los benchmarks
+comparan BoVW (índice invertido) con embeddings densos y miden el compromiso
+recall-latencia del IVF:
+
+```bash
+python benchmarks/vector/run_experiment7.py --quick
+python benchmarks/vector/run_experiment8.py --quick
+```
+
+El módulo también procesa audio: MFCC por ventana, BoAW sobre el índice
+invertido y k-NN con DTW y poda LB_Keogh (`run_audio.py`).
+
+## Pruebas
+
+```bash
+python -m pytest tests -q
+```

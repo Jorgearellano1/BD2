@@ -950,3 +950,42 @@ execute_statement(statement, info) -> (StatementExplain, StatementResult | None)
 execute(program) -> ExecutionOutput
     recorre el Program, corta en el primer fallo y cierra los recursos
 ```
+
+## Modulo vectorial
+
+### Construccion
+
+`CREATE INDEX ... USING IVF` recorre el Heap, extrae la columna VECTOR y
+construye `IvfIndex` con K-Means:
+
+```text
+centroids.ctr   cabecera + centroides y cabeza de cada lista
+lists.lst       listas paginadas de (RID, vector) encadenadas por pagina
+```
+
+La construccion registra lecturas del Heap y escrituras del indice como
+operaciones separadas (`scan_for_index`, `kmeans_build`).
+
+### Consulta
+
+```text
+VectorScanPlan
+    indice: lee centroides, elige los 'probes' mas cercanos y recorre solo
+            esas listas; conserva el Top-K con un max-heap de tamano K.
+    exacto: recorre todas las paginas del Heap y aplica el mismo Top-K.
+VectorFetchPlan
+    lee los registros por RID, conserva el orden por distancia y aplica el
+    filtro relacional residual.
+VectorProjectPlan
+    convierte el registro crudo a valores limpios e intercala la distancia.
+```
+
+Metricas: las operaciones del IVF se registran como `probe_centroids` y
+`scan_lists`; el escaneo exacto como `vector_scan`. El desglose de E/S del API
+separa `index_reads` (IVF) de `table_reads` (Heap).
+
+### Consistencia
+
+`INSERT` y `DELETE` marcan el indice IVF como desactualizado (una escritura de
+cabecera). La siguiente consulta lo reconstruye desde el Heap antes de usarlo.
+`SET ivf.probes` modifica `ExecutionContext.ivf_probes` y no se persiste.

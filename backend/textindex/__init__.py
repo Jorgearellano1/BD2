@@ -1,5 +1,5 @@
 """
-Modulo textual del motor BD2 (Proyecto 2, Parte 3).
+Modulo textual del motor BD2.
 
 Componentes:
     preprocessing  : pipeline lexico (normalizacion, tokens, stoplist, stemming)

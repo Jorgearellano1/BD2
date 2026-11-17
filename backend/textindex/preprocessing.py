@@ -1,12 +1,12 @@
 """
 Pipeline de preprocesamiento lexico (modelo Bag of Words).
 
-Etapas, en el orden aplicado (PDF 09, p. 23-25; enunciado P2, p. 9):
+Etapas, en el orden aplicado:
 
     1. Normalizacion Unicode NFKC: unifica formas de compatibilidad
        (ligaduras, digitos de ancho completo) para que el mismo texto
        siempre produzca los mismos bytes.
-    2. Siglas con puntos: "O.N.U." se convierte en "ONU" (p. 23 del PDF 09).
+    2. Siglas con puntos: "O.N.U." se convierte en "ONU".
     3. Case folding (casefold), mas agresivo que lower() para Unicode.
     4. Tokenizacion: secuencias maximas de letras o digitos Unicode; todo lo
        demas (espacios, signos, guiones, apostrofos) separa tokens.

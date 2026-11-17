@@ -12,11 +12,14 @@ Statement ::= CREATE CreateStmtRest
             | ALTER AlterStmtRest
             | SELECT SelectStmtRest
             | DELETE DeleteStmtRest
+            | SET SetStmtRest
 
 
 CreateStmtRest ::= TABLE ID CreateTableBody
-                 | INDEX ID ON ID "(" ID ")"
-                   USING IndexType ";"
+                 | INDEX ID ON ID "(" IDList ")"
+                   USING IndexType
+                   [ "WITH" "(" OptionList ")" ]
+                   ";"
 
 
 CreateTableBody ::= "(" ColumnDefList ")"
@@ -42,6 +45,7 @@ Type ::= INT
        | FLOAT
        | DOUBLE
        | CHAR "(" INT_LITERAL ")"
+       | VECTOR "(" INT_LITERAL ")"
 
 
 UsingClause ::= USING StorageType
@@ -71,6 +75,14 @@ Value ::= INT_LITERAL
 
 IndexType ::= BTREE
             | HASH
+            | RTREE
+            | INVERTED
+            | IVF
+
+
+OptionList ::= Option { "," Option }
+
+Option ::= ID "=" ( INT_LITERAL | STRING_LITERAL )
 
 
 AlterStmtRest ::= TABLE ID
@@ -82,12 +94,20 @@ SelectStmtRest ::= SelectList
                    FROM ID
                    [ ForceClause ]
                    [ WhereClause ]
+                   [ OrderClause ]
+                   [ LimitClause ]
                    ";"
 
 SelectList ::= "*"
-             | ColumnList
+             | SelectItem { "," SelectItem }
 
-ColumnList ::= ID { "," ID }
+SelectItem ::= ID
+             | COSINE_SCORE "(" ")" [ AS ID ]
+             | ID DistanceOperator STRING_LITERAL [ AS ID ]
+
+DistanceOperator ::= "<->"
+                   | "<=>"
+                   | "<#>"
 
 
 ForceClause ::= FORCE ForceClauseRest
@@ -99,6 +119,8 @@ IndexBody ::= "*"
             | IndexList
 
 IndexList ::= ID { "," ID }
+
+IDList ::= ID { "," ID }
 
 
 WhereClause ::= WHERE Condition
@@ -115,6 +137,7 @@ NotCondition ::= NOT NotCondition
                | PrimaryCondition
 
 PrimaryCondition ::= "(" Condition ")"
+                   | ID MATCH STRING_LITERAL
                    | Operand ComparisonOperator Operand
 
 
@@ -133,9 +156,16 @@ ComparisonOperator ::= "="
                      | ">="
 
 
+OrderClause ::= ORDER BY ID [ ASC | DESC ]
+
+LimitClause ::= LIMIT INT_LITERAL
+
+
+SetStmtRest ::= ID [ "." ID ] "=" ( INT_LITERAL | REAL_LITERAL | STRING_LITERAL ) ";"
+
+
 DeleteStmtRest ::= FROM ID
                    [ ForceClause ]
                    [ WhereClause ]
                    ";"
 ```
-

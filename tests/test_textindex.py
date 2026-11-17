@@ -109,8 +109,8 @@ class TempDirCase(unittest.TestCase):
 
 
 class PreprocessingTests(unittest.TestCase):
-    def test_pdf09_example(self):
-        # PDF 09, p. 24: "Mis amigas y amigos peruanos son estudiosos."
+    def test_preprocessing_example(self):
+        # Texto de ejemplo: "Mis amigas y amigos peruanos son estudiosos."
         self.assertEqual(
             PRE.terms('Mis amigas y amigos peruanos son estudiosos.'),
             ['amig', 'amig', 'peruan', 'estudi'],
@@ -160,7 +160,7 @@ class MergeTests(unittest.TestCase):
             self.assertEqual(merge.difference(a, b), sorted(set(a) - set(b)))
 
     def test_union_keeps_tails(self):
-        # El pseudocodigo OR de la p. 83 del PDF 09 omite las colas.
+        # El OR debe copiar las colas que quedan en la lista no agotada.
         self.assertEqual(merge.union([1, 2], [3, 4, 5]), [1, 2, 3, 4, 5])
         self.assertEqual(merge.difference([1, 5, 9], [5]), [1, 9])
 

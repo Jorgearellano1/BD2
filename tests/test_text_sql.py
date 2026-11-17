@@ -128,7 +128,7 @@ class ParserCompatibilityTests(unittest.TestCase):
         idx = self.parse('CREATE INDEX i ON t (id) USING BTREE;')
         self.assertEqual(idx, CreateIndexStm('i', 't', 'id', IndexType.BTREE))
 
-    def test_enunciado_syntax(self):
+    def test_text_syntax(self):
         stm = self.parse(
             "SELECT id , titulo , COSINE_SCORE () AS relevancia FROM documentos "
             "WHERE cuerpo MATCH ' aprendizaje AND profundo AND NOT basico ' "
@@ -157,7 +157,7 @@ class TextSqlTests(SqlCase):
         self.assertEqual(info.options['scoring'], 'TFIDF_COSINE')
         self.assertEqual(sorted(os.listdir(info.file_path)), ['docs.dat', 'postings.inv', 'vocab.dic'])
 
-    def test_enunciado_query_and_full_scan_agree(self):
+    def test_query_and_full_scan_agree(self):
         query = ("SELECT id, titulo, COSINE_SCORE() AS relevancia FROM documentos {force} "
                  "WHERE cuerpo MATCH 'aprendizaje AND profundo AND NOT basico' "
                  "ORDER BY relevancia DESC LIMIT 10;")

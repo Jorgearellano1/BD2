@@ -1,5 +1,5 @@
 """
-Indice invertido persistido en memoria secundaria (Parte 3 del P2).
+Indice invertido persistido en memoria secundaria.
 
 Archivos dentro del directorio del indice (todos en paginas de B bytes,
 leidas y escritas con seek + read/write + struct; little-endian):
@@ -25,12 +25,12 @@ docs.dat  Tabla de documentos: pagina 0 cabecera; luego registros fijos
     del registro en el HeapFile y la norma euclidiana precalculada del
     vector TF-IDF del documento.
 
-Pesos (enunciado P2, p. 9; PDF 09, p. 42, 47, 51):
+Pesos TF-IDF:
     w(t,d) = (1 + log10 tf(t,d)) * log10(N / df(t))
     |d|    = sqrt( sum_t w(t,d)^2 )                   (precalculado)
     score(q,d) = sum_{t en q} w(t,q) w(t,d) / (|q| |d|)   (CosineScore)
 
-Construccion SPIMI (opcional segun el enunciado, p. 9): los documentos se
+Construccion SPIMI por bloques: los documentos se
 procesan en bloques; cada bloque acumula un diccionario termino -> postings
 en RAM hasta 'block_postings' entradas, se ordena por termino y se escribe
 como una corrida en disco. Al final las corridas se mezclan con un heap
@@ -770,7 +770,7 @@ def top_k_heap(
     descending: bool = True,
 ) -> list[tuple[float, int]]:
     """
-    Top-K con una cola de prioridad de tamano K (enunciado P2, p. 10).
+    Top-K con una cola de prioridad de tamano K.
 
     Para DESC se mantiene un min-heap con los K mejores vistos: la raiz es el
     peor de ellos y se reemplaza cuando llega uno mejor. Costo O(n log K) y
