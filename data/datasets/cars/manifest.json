@@ -1,0 +1,28 @@
+{
+  "source": "austinreese/craigslist-carstrucks-data (CC0)",
+  "products": 12000,
+  "image_width": 256,
+  "image_height": 192,
+  "feature_size": 224,
+  "categories": {
+    "Bus": 463,
+    "Convertible": 1500,
+    "Coupe": 1499,
+    "Hatchback": 1500,
+    "Mini-Van": 1499,
+    "Offroad": 306,
+    "Other": 1494,
+    "Pickup": 1499,
+    "Sedan": 1498,
+    "Suv": 742
+  },
+  "words": 64,
+  "embedding_dim": 512,
+  "files": [
+    "products.csv",
+    "bovw.csv",
+    "codebook.json",
+    "embeddings.bin",
+    "images/"
+  ]
+}

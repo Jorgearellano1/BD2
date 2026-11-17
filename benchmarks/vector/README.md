@@ -144,3 +144,44 @@ python benchmarks/vector/build_bovw_csv.py
 El script lee `sift_descriptors.bin`, construye un codebook de 64 palabras y
 escribe tambien `bovw_codebook.json` y `bovw_manifest.json`. El frontend usa
 `bovw.csv` en el ejemplo "BoVW: crear tabla e indice invertido".
+
+## Recomendador de vehiculos
+
+Dataset real de Craigslist (Kaggle, CC0): 426k vehiculos con imagen, titulo,
+descripcion, precio, categoria y latitud/longitud. Se usa un subconjunto de
+12,000 con imagenes de 256x192.
+
+```bash
+mkdir -p data/raw/craigslist
+curl -L -o data/raw/craigslist/cars.zip \
+  https://www.kaggle.com/api/v1/datasets/download/austinreese/craigslist-carstrucks-data
+
+pip install -r requirements-vision.txt
+python benchmarks/vector/build_car_dataset.py --zip data/raw/craigslist/cars.zip
+python benchmarks/vector/load_car_db.py
+```
+
+`build_car_dataset.py` descarga las imagenes, entrena el codebook BoVW, extrae
+SIFT y embeddings ResNet-18 y deja todo en `data/datasets/cars/`. Tambien
+guarda `data/models/resnet18.pth`, que usa el API para procesar fotos subidas.
+
+`load_car_db.py` crea la tabla `vehiculos` en `storage/` con indices:
+
+```text
+B+ Tree     precio
+R-Tree      latitud, longitud
+Invertido   descripcion (ingles)
+Invertido   palabras visuales BoVW
+IVF         embedding (512D, coseno)
+```
+
+Luego se levanta el API y se abre la pestana **Recomendador**:
+
+```bash
+uvicorn main:app --reload
+```
+
+Se puede subir una foto o escribir una descripcion, filtrar por precio y
+ciudad/radio. El resultado muestra BoVW y embeddings en paralelo, con sus
+planes y metricas de I/O. Endpoints: `POST /api/recommend`,
+`GET /api/recommend/samples` y `/media/<imagen>`.
