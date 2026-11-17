@@ -1,0 +1,381 @@
+{
+  "experiment": 8,
+  "profile": "full",
+  "dataset": "data/datasets/dry_beans.arff",
+  "parameters": {
+    "k": 10,
+    "probes": [
+      1,
+      2,
+      5,
+      10,
+      20,
+      50
+    ],
+    "sizes": [
+      1000,
+      3000,
+      7000,
+      13687
+    ],
+    "queries": 20,
+    "iterations": 8,
+    "seed": 42
+  },
+  "runs": [
+    {
+      "n": 1000,
+      "lists": 32,
+      "queries": 20,
+      "build_ms": 274.8,
+      "probes": [
+        1,
+        2,
+        5,
+        10,
+        20
+      ]
+    },
+    {
+      "n": 3000,
+      "lists": 55,
+      "queries": 20,
+      "build_ms": 1293.04,
+      "probes": [
+        1,
+        2,
+        5,
+        10,
+        20,
+        50
+      ]
+    },
+    {
+      "n": 7000,
+      "lists": 84,
+      "queries": 20,
+      "build_ms": 6742.63,
+      "probes": [
+        1,
+        2,
+        5,
+        10,
+        20,
+        50
+      ]
+    },
+    {
+      "n": 13611,
+      "lists": 117,
+      "queries": 20,
+      "build_ms": 20476.64,
+      "probes": [
+        1,
+        2,
+        5,
+        10,
+        20,
+        50
+      ]
+    }
+  ],
+  "summary": [
+    {
+      "n": 1000,
+      "lists": 32,
+      "method": "exact",
+      "probes": 0,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 2.664,
+      "latency_std": 0.324,
+      "reads": 32.55
+    },
+    {
+      "n": 1000,
+      "lists": 32,
+      "method": "ivf",
+      "probes": 1,
+      "recall@10": 0.8,
+      "recall_std": 0.2121,
+      "latency_ms": 0.826,
+      "latency_std": 0.24,
+      "reads": 10.5
+    },
+    {
+      "n": 1000,
+      "lists": 32,
+      "method": "ivf",
+      "probes": 2,
+      "recall@10": 0.93,
+      "recall_std": 0.1269,
+      "latency_ms": 0.789,
+      "latency_std": 0.128,
+      "reads": 11.9
+    },
+    {
+      "n": 1000,
+      "lists": 32,
+      "method": "ivf",
+      "probes": 5,
+      "recall@10": 0.99,
+      "recall_std": 0.03,
+      "latency_ms": 1.052,
+      "latency_std": 0.255,
+      "reads": 15.45
+    },
+    {
+      "n": 1000,
+      "lists": 32,
+      "method": "ivf",
+      "probes": 10,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 1.296,
+      "latency_std": 0.374,
+      "reads": 21.15
+    },
+    {
+      "n": 1000,
+      "lists": 32,
+      "method": "ivf",
+      "probes": 20,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 1.775,
+      "latency_std": 0.294,
+      "reads": 32.5
+    },
+    {
+      "n": 3000,
+      "lists": 55,
+      "method": "exact",
+      "probes": 0,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 7.032,
+      "latency_std": 0.465,
+      "reads": 81.6
+    },
+    {
+      "n": 3000,
+      "lists": 55,
+      "method": "ivf",
+      "probes": 1,
+      "recall@10": 0.78,
+      "recall_std": 0.172,
+      "latency_ms": 0.864,
+      "latency_std": 0.145,
+      "reads": 13.45
+    },
+    {
+      "n": 3000,
+      "lists": 55,
+      "method": "ivf",
+      "probes": 2,
+      "recall@10": 0.98,
+      "recall_std": 0.0678,
+      "latency_ms": 1.028,
+      "latency_std": 0.234,
+      "reads": 15.6
+    },
+    {
+      "n": 3000,
+      "lists": 55,
+      "method": "ivf",
+      "probes": 5,
+      "recall@10": 0.995,
+      "recall_std": 0.0218,
+      "latency_ms": 1.38,
+      "latency_std": 0.283,
+      "reads": 21.55
+    },
+    {
+      "n": 3000,
+      "lists": 55,
+      "method": "ivf",
+      "probes": 10,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 2.155,
+      "latency_std": 0.545,
+      "reads": 30.9
+    },
+    {
+      "n": 3000,
+      "lists": 55,
+      "method": "ivf",
+      "probes": 20,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 3.1,
+      "latency_std": 0.609,
+      "reads": 47.2
+    },
+    {
+      "n": 3000,
+      "lists": 55,
+      "method": "ivf",
+      "probes": 50,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 5.905,
+      "latency_std": 0.548,
+      "reads": 89.15
+    },
+    {
+      "n": 7000,
+      "lists": 84,
+      "method": "exact",
+      "probes": 0,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 24.381,
+      "latency_std": 8.691,
+      "reads": 176.85
+    },
+    {
+      "n": 7000,
+      "lists": 84,
+      "method": "ivf",
+      "probes": 1,
+      "recall@10": 0.74,
+      "recall_std": 0.2478,
+      "latency_ms": 2.737,
+      "latency_std": 2.046,
+      "reads": 14
+    },
+    {
+      "n": 7000,
+      "lists": 84,
+      "method": "ivf",
+      "probes": 2,
+      "recall@10": 0.915,
+      "recall_std": 0.1526,
+      "latency_ms": 3.048,
+      "latency_std": 2.866,
+      "reads": 16.75
+    },
+    {
+      "n": 7000,
+      "lists": 84,
+      "method": "ivf",
+      "probes": 5,
+      "recall@10": 0.99,
+      "recall_std": 0.03,
+      "latency_ms": 2.679,
+      "latency_std": 1.599,
+      "reads": 23.85
+    },
+    {
+      "n": 7000,
+      "lists": 84,
+      "method": "ivf",
+      "probes": 10,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 2.648,
+      "latency_std": 0.974,
+      "reads": 35.55
+    },
+    {
+      "n": 7000,
+      "lists": 84,
+      "method": "ivf",
+      "probes": 20,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 4.333,
+      "latency_std": 1.131,
+      "reads": 59.45
+    },
+    {
+      "n": 7000,
+      "lists": 84,
+      "method": "ivf",
+      "probes": 50,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 8.697,
+      "latency_std": 1.329,
+      "reads": 124.65
+    },
+    {
+      "n": 13611,
+      "lists": 117,
+      "method": "exact",
+      "probes": 0,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 52.244,
+      "latency_std": 1.23,
+      "reads": 334.95
+    },
+    {
+      "n": 13611,
+      "lists": 117,
+      "method": "ivf",
+      "probes": 1,
+      "recall@10": 0.74,
+      "recall_std": 0.196,
+      "latency_ms": 2.381,
+      "latency_std": 0.737,
+      "reads": 16.35
+    },
+    {
+      "n": 13611,
+      "lists": 117,
+      "method": "ivf",
+      "probes": 2,
+      "recall@10": 0.925,
+      "recall_std": 0.1043,
+      "latency_ms": 2.888,
+      "latency_std": 0.799,
+      "reads": 20
+    },
+    {
+      "n": 13611,
+      "lists": 117,
+      "method": "ivf",
+      "probes": 5,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 4.478,
+      "latency_std": 1.242,
+      "reads": 30.25
+    },
+    {
+      "n": 13611,
+      "lists": 117,
+      "method": "ivf",
+      "probes": 10,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 6.77,
+      "latency_std": 1.906,
+      "reads": 47.75
+    },
+    {
+      "n": 13611,
+      "lists": 117,
+      "method": "ivf",
+      "probes": 20,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 12.17,
+      "latency_std": 2.827,
+      "reads": 83.7
+    },
+    {
+      "n": 13611,
+      "lists": 117,
+      "method": "ivf",
+      "probes": 50,
+      "recall@10": 1.0,
+      "recall_std": 0.0,
+      "latency_ms": 25.233,
+      "latency_std": 3.848,
+      "reads": 181.4
+    }
+  ]
+}

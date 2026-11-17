@@ -1,0 +1,55 @@
+method,query_id,category,precision@5,precision@10,latency_ms,reads,writes,plan,strategy
+BoVW,0,airplane,0.4,0.3,23.977,69,0,TextIndexScan,INDEX_ONLY
+Dense exacto,0,airplane,1.0,1.0,33.692,610,0,VectorScan,SEQ_SCAN
+Dense IVF,0,airplane,1.0,1.0,4.181,54,0,VectorScan,INDEX_ONLY
+BoVW,1,airplane,0.4,0.4,22.911,67,0,TextIndexScan,INDEX_ONLY
+Dense exacto,1,airplane,1.0,1.0,93.463,610,0,VectorScan,SEQ_SCAN
+Dense IVF,1,airplane,1.0,1.0,10.347,51,0,VectorScan,INDEX_ONLY
+BoVW,2,airplane,0.4,0.2,25.629,67,0,TextIndexScan,INDEX_ONLY
+Dense exacto,2,airplane,1.0,1.0,57.443,610,0,VectorScan,SEQ_SCAN
+Dense IVF,2,airplane,0.4,0.2,4.295,32,0,VectorScan,INDEX_ONLY
+BoVW,100,car,0.6,0.4,26.605,69,0,TextIndexScan,INDEX_ONLY
+Dense exacto,100,car,1.0,1.0,56.878,610,0,VectorScan,SEQ_SCAN
+Dense IVF,100,car,1.0,0.9,11.34,42,0,VectorScan,INDEX_ONLY
+BoVW,101,car,0.4,0.3,27.583,69,0,TextIndexScan,INDEX_ONLY
+Dense exacto,101,car,1.0,1.0,76.453,610,0,VectorScan,SEQ_SCAN
+Dense IVF,101,car,1.0,1.0,10.031,93,0,VectorScan,INDEX_ONLY
+BoVW,102,car,0.8,0.5,12.574,68,0,TextIndexScan,INDEX_ONLY
+Dense exacto,102,car,1.0,1.0,25.125,610,0,VectorScan,SEQ_SCAN
+Dense IVF,102,car,1.0,1.0,5.573,93,0,VectorScan,INDEX_ONLY
+BoVW,200,cat,0.6,0.3,12.665,68,0,TextIndexScan,INDEX_ONLY
+Dense exacto,200,cat,1.0,1.0,64.172,610,0,VectorScan,SEQ_SCAN
+Dense IVF,200,cat,1.0,1.0,13.111,87,0,VectorScan,INDEX_ONLY
+BoVW,201,cat,0.4,0.2,31.916,66,0,TextIndexScan,INDEX_ONLY
+Dense exacto,201,cat,0.8,0.9,89.963,610,0,VectorScan,SEQ_SCAN
+Dense IVF,201,cat,1.0,1.0,10.445,52,0,VectorScan,INDEX_ONLY
+BoVW,202,cat,0.2,0.2,33.38,67,0,TextIndexScan,INDEX_ONLY
+Dense exacto,202,cat,1.0,1.0,81.854,610,0,VectorScan,SEQ_SCAN
+Dense IVF,202,cat,1.0,1.0,13.094,87,0,VectorScan,INDEX_ONLY
+BoVW,300,dog,0.2,0.1,25.585,68,0,TextIndexScan,INDEX_ONLY
+Dense exacto,300,dog,1.0,1.0,80.317,610,0,VectorScan,SEQ_SCAN
+Dense IVF,300,dog,1.0,1.0,17.911,68,0,VectorScan,INDEX_ONLY
+BoVW,301,dog,0.2,0.2,44.852,66,0,TextIndexScan,INDEX_ONLY
+Dense exacto,301,dog,1.0,1.0,70.452,610,0,VectorScan,SEQ_SCAN
+Dense IVF,301,dog,1.0,1.0,11.713,63,0,VectorScan,INDEX_ONLY
+BoVW,302,dog,0.6,0.3,47.289,69,0,TextIndexScan,INDEX_ONLY
+Dense exacto,302,dog,1.0,0.9,65.638,610,0,VectorScan,SEQ_SCAN
+Dense IVF,302,dog,1.0,1.0,11.619,63,0,VectorScan,INDEX_ONLY
+BoVW,400,flower,0.6,0.4,29.836,66,0,TextIndexScan,INDEX_ONLY
+Dense exacto,400,flower,1.0,1.0,63.401,610,0,VectorScan,SEQ_SCAN
+Dense IVF,400,flower,1.0,1.0,9.865,57,0,VectorScan,INDEX_ONLY
+BoVW,401,flower,0.6,0.8,35.214,63,0,TextIndexScan,INDEX_ONLY
+Dense exacto,401,flower,1.0,1.0,77.326,610,0,VectorScan,SEQ_SCAN
+Dense IVF,401,flower,1.0,1.0,10.533,57,0,VectorScan,INDEX_ONLY
+BoVW,402,flower,0.8,0.9,15.838,64,0,TextIndexScan,INDEX_ONLY
+Dense exacto,402,flower,1.0,1.0,25.489,610,0,VectorScan,SEQ_SCAN
+Dense IVF,402,flower,1.0,1.0,5.453,57,0,VectorScan,INDEX_ONLY
+BoVW,500,fruit,0.8,0.6,4.76,40,0,TextIndexScan,INDEX_ONLY
+Dense exacto,500,fruit,1.0,1.0,27.027,610,0,VectorScan,SEQ_SCAN
+Dense IVF,500,fruit,1.0,1.0,7.146,133,0,VectorScan,INDEX_ONLY
+BoVW,501,fruit,1.0,1.0,3.833,28,0,TextIndexScan,INDEX_ONLY
+Dense exacto,501,fruit,1.0,1.0,26.794,610,0,VectorScan,SEQ_SCAN
+Dense IVF,501,fruit,1.0,1.0,9.048,133,0,VectorScan,INDEX_ONLY
+BoVW,502,fruit,0.8,0.7,5.596,44,0,TextIndexScan,INDEX_ONLY
+Dense exacto,502,fruit,1.0,1.0,26.198,610,0,VectorScan,SEQ_SCAN
+Dense IVF,502,fruit,1.0,1.0,7.03,133,0,VectorScan,INDEX_ONLY

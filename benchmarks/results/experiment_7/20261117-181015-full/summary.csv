@@ -1,0 +1,4 @@
+method,precision@5,precision@10,precision@5_std,precision@10_std,latency_ms,latency_ms_std,reads,writes,feature_ms,index_build_ms
+BoVW,0.5444,0.4333,0.2291,0.256,23.891,12.371,62.11,0,60429.2,1373.16
+Dense exacto,0.9889,0.9889,0.0458,0.0314,57.871,23.588,610,0,8.55,0.0
+Dense IVF,0.9667,0.95,0.1374,0.1833,9.596,3.427,75.28,0,8.55,3525.19
