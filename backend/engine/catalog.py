@@ -80,6 +80,7 @@ class Catalog:
                 column=raw['column'],
                 kind=IndexKind(raw['type']),
                 file_path=raw['file'],
+                options=raw.get('options'),
             )
 
             target = (index.table, index.column, index.kind)
@@ -113,6 +114,7 @@ class Catalog:
                     'column': idx.column,
                     'type': idx.kind.value,
                     'file': idx.file_path,
+                    **({'options': idx.options} if idx.options else {}),
                 }
                 for name, idx in self._indexes.items()
             },
@@ -269,6 +271,7 @@ class Catalog:
             column=index.column,
             kind=index.kind,
             file_path=index.file_path,
+            options=index.options,
         )
 
         del self._indexes[old_name]
@@ -300,6 +303,9 @@ class Catalog:
         """
         if kind is IndexKind.BTREE:
             filename = f'{table}_{column}_bplustree.dat'
+        elif kind is IndexKind.INVERTED:
+            # Directorio con vocab.dic, postings.inv y docs.dat.
+            filename = f'{table}_{column}_inverted'
         else:
             filename = f'{table}_{column}.hash'
         return os.path.join(self.storage_dir, filename)

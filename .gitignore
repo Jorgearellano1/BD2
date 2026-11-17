@@ -13,3 +13,4 @@ storage/*.bin
 benchmarks/results/*.csv
 benchmarks/results/*.json
 .DS_Store
+data/raw/

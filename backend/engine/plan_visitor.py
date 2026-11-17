@@ -27,6 +27,12 @@ from engine.plan import (
     FilterRidsPlan,
     EmptyResultPlan,
     ProjectPlan,
+    TextIndexScanPlan,
+    TextFetchPlan,
+    FullTextScanPlan,
+    SortPlan,
+    LimitPlan,
+    TextProjectPlan,
 )
 
 
@@ -160,3 +166,24 @@ class PlanVisitor(ABC, Generic[R]):
     def visit_project(self, node: ProjectPlan) -> R:
         """Visita un ProjectPlan."""
         pass
+
+    # Modulo textual. No son abstractos para no obligar a otros visitors.
+
+    def visit_text_index_scan(self, node: TextIndexScanPlan) -> R:
+        raise NotImplementedError("TextIndexScanPlan no soportado")
+
+    def visit_text_fetch(self, node: TextFetchPlan) -> R:
+        raise NotImplementedError("TextFetchPlan no soportado")
+
+    def visit_full_text_scan(self, node: FullTextScanPlan) -> R:
+        raise NotImplementedError("FullTextScanPlan no soportado")
+
+    def visit_sort(self, node: SortPlan) -> R:
+        raise NotImplementedError("SortPlan no soportado")
+
+    def visit_limit(self, node: LimitPlan) -> R:
+        raise NotImplementedError("LimitPlan no soportado")
+
+    def visit_text_project(self, node: TextProjectPlan) -> R:
+        raise NotImplementedError("TextProjectPlan no soportado")
+

@@ -16,6 +16,7 @@ class IndexKind(str, Enum):
     """Tipo de estructura de un indice."""
     BTREE = 'BTREE'
     HASH = 'HASH'
+    INVERTED = 'INVERTED'
 
 
 class Column(TypedDict):
@@ -257,3 +258,5 @@ class IndexMetadata:
     column: str
     kind: IndexKind
     file_path: str
+    # Opciones de WITH (...) de CREATE INDEX; solo las usa INVERTED.
+    options: dict[str, Any] | None = None

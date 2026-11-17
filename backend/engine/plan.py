@@ -68,6 +68,7 @@ class CreateIndexPlan(PlanNode):
     table: str
     column: str
     index_kind: IndexKind
+    options: dict | None = None
 
     def accept(self, visitor: PlanVisitor[R]) -> R:
         return visitor.visit_create_index(self)
@@ -374,3 +375,113 @@ class ProjectPlan(PlanNode):
 
     def accept(self, visitor: PlanVisitor[R]) -> R:
         return visitor.visit_project(self)
+
+
+# ---------------------------------------------------------------------------
+# Modulo textual (P2, Parte 3)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class TextIndexScanPlan(PlanNode):
+    """
+    Busqueda en el indice invertido.
+
+    Evalua la consulta booleana con mezclas lineales y, si rank=True, calcula
+    CosineScore y conserva los top_k mejores con un heap.
+
+    strategy:
+        INDEX_ONLY  : no hay filtro relacional.
+        PRE_FILTER  : 'prefilter' (B+ / Hash) produce los RIDs permitidos
+                      antes de puntuar.
+        POST_FILTER : el filtro relacional se evalua despues, sobre los
+                      registros candidatos (ver TextFetchPlan).
+
+    Resultado: RIDs en orden de relevancia (o de doc_id) y sus scores.
+    """
+
+    table: str
+    index: str
+    column: str
+    query: str
+    rank: bool
+    top_k: int | None
+    descending: bool
+    strategy: str
+    prefilter: PlanNode | None = None
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_text_index_scan(self)
+
+
+@dataclass
+class TextFetchPlan(PlanNode):
+    """
+    Recupera del Heap los registros de los RIDs candidatos conservando su
+    orden y su score. Si hay 'residual' (post-filtering) lo evalua y, con
+    'limit', se detiene en cuanto tiene 'limit' registros validos.
+    """
+
+    table: str
+    child: PlanNode
+    residual: Expression | None = None
+    limit: int | None = None
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_text_fetch(self)
+
+
+@dataclass
+class FullTextScanPlan(PlanNode):
+    """
+    Linea base sin indice: recorre todo el Heap, preprocesa cada documento y
+    aplica la misma consulta y el mismo scoring que el indice invertido.
+    """
+
+    table: str
+    column: str
+    query: str
+    options: dict
+    rank: bool
+    top_k: int | None
+    descending: bool
+    residual: Expression | None = None
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_full_text_scan(self)
+
+
+@dataclass
+class SortPlan(PlanNode):
+    """ORDER BY sobre una columna de la tabla (ordenamiento estable)."""
+
+    column: str
+    descending: bool
+    child: PlanNode
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_sort(self)
+
+
+@dataclass
+class LimitPlan(PlanNode):
+    """LIMIT n: conserva los primeros n registros."""
+
+    limit: int
+    child: PlanNode
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_limit(self)
+
+
+@dataclass
+class TextProjectPlan(PlanNode):
+    """Proyeccion que intercala COSINE_SCORE() AS alias entre las columnas."""
+
+    columns: list[str]
+    score_alias: str
+    score_position: int
+    child: PlanNode
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_text_project(self)
+

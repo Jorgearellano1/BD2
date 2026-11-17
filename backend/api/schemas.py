@@ -42,6 +42,7 @@ class IndexResponse(BaseModel):
     table: str
     column: str
     type: str
+    options: dict | None = None
 
 
 class IndexesResponse(BaseModel):
@@ -70,6 +71,7 @@ class NodeMetricsResponse(BaseModel):
     self_pages_written: int
     operations: list[OperationMetricsResponse]
     children: list['NodeMetricsResponse']
+    detail: str | None = None
 
 
 class StatementResponse(BaseModel):
@@ -100,6 +102,8 @@ class QueryResponse(BaseModel):
     index: str | None = None
     statements: int = 0
     metrics: dict[str, float] = Field(default_factory=dict)
+    io_breakdown: dict[str, int] | None = None
+    strategy: str | None = None
     result_id: str | None = None
     page: int = 1
     total_pages: int = 1

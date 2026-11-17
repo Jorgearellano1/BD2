@@ -1,0 +1,500 @@
+{
+  "source": "Project Gutenberg (dominio publico), mirror https://gutenberg.pglaf.org",
+  "catalog": "https://gutenberg.pglaf.org/cache/epub/feeds/pg_catalog.csv",
+  "filters": {
+    "language": "es",
+    "type": "Text",
+    "min_chars": 200,
+    "max_bytes": 1000,
+    "dedupe": "sha1 del parrafo"
+  },
+  "seed": 2042,
+  "documents": 32340,
+  "books": [
+    {
+      "id": 320,
+      "title": "Vida De Lazarillo De Tormes Y De Sus Fortunas Y Adversidades",
+      "authors": "Anonymous",
+      "issued": "1995-09-01",
+      "paragraphs": 169
+    },
+    {
+      "id": 1619,
+      "title": "La Celestina",
+      "authors": "Rojas, Fernando de, -1541",
+      "issued": "1999-01-01",
+      "paragraphs": 370
+    },
+    {
+      "id": 2000,
+      "title": "Don Quijote",
+      "authors": "Cervantes Saavedra, Miguel de, 1547-1616",
+      "issued": "1999-12-01",
+      "paragraphs": 2766
+    },
+    {
+      "id": 2367,
+      "title": "Los Bombardeos Atomicos de Hiroshima y Nagasaki",
+      "authors": "United States. Army. Corps of Engineers. Manhattan District",
+      "issued": "2000-10-01",
+      "paragraphs": 212
+    },
+    {
+      "id": 5877,
+      "title": "Reina Valera New Testament of the Bible 1602, Book of Matthew",
+      "authors": "Reina, Casiodoro de, 1520?-1594 [Translator]; Valera, Cipriano de, 1532?-1625 [Translator]",
+      "issued": "2004-06-01",
+      "paragraphs": 37
+    },
+    {
+      "id": 5878,
+      "title": "Reina Valera New Testament of the Bible 1858",
+      "authors": "Reina, Casiodoro de, 1520?-1594 [Translator]; Valera, Cipriano de, 1532?-1625 [Translator]",
+      "issued": "2004-06-01",
+      "paragraphs": 319
+    },
+    {
+      "id": 5879,
+      "title": "Reina Valera New Testament of the Bible 1862",
+      "authors": "Reina, Casiodoro de, 1520?-1594 [Translator]; Valera, Cipriano de, 1532?-1625 [Translator]",
+      "issued": "2004-06-01",
+      "paragraphs": 316
+    },
+    {
+      "id": 5880,
+      "title": "Reina Valera New Testament of the Bible 1865",
+      "authors": "Reina, Casiodoro de, 1520?-1594 [Translator]; Valera, Cipriano de, 1532?-1625 [Translator]",
+      "issued": "2004-06-01",
+      "paragraphs": 83
+    },
+    {
+      "id": 5881,
+      "title": "Reina Valera New Testament of the Bible 1909",
+      "authors": "Reina, Casiodoro de, 1520?-1594 [Translator]; Valera, Cipriano de, 1532?-1625 [Translator]",
+      "issued": "2004-06-01",
+      "paragraphs": 30
+    },
+    {
+      "id": 5985,
+      "title": "Zadig, ó El Destino, Historia Oriental",
+      "authors": "Voltaire, 1694-1778",
+      "issued": "2004-06-01",
+      "paragraphs": 116
+    },
+    {
+      "id": 6528,
+      "title": "Sagradas Escrituras Version Antigua",
+      "authors": "Stendal, Russell, 1955-",
+      "issued": "2004-09-01",
+      "paragraphs": 3457
+    },
+    {
+      "id": 7109,
+      "title": "Candido, o El Optimismo",
+      "authors": "Voltaire, 1694-1778",
+      "issued": "2004-12-01",
+      "paragraphs": 181
+    },
+    {
+      "id": 8870,
+      "title": "La Mejor Cocinera, Recetas de Cocina",
+      "authors": "Calleja (pseudonym)",
+      "issued": "2005-09-01",
+      "paragraphs": 655
+    },
+    {
+      "id": 9890,
+      "title": "Biografia del libertador Simon Bolívar, ó La independencia de la América del sud Reseña histórico-biográfica",
+      "authors": "Campano, Lorenzo",
+      "issued": "2006-02-01",
+      "paragraphs": 237
+    },
+    {
+      "id": 9895,
+      "title": "Novelas de Voltaire — Tomo Primero",
+      "authors": "Voltaire, 1694-1778",
+      "issued": "2006-02-01",
+      "paragraphs": 90
+    },
+    {
+      "id": 9980,
+      "title": "Platero y yo",
+      "authors": "Jiménez, Juan Ramón, 1881-1958; Onís, Federico de, 1885-1966 [Author of introduction, etc.]; Walsh, Gertrude M. (Gertrude Margaret), 1884- [Editor]; Petersham, Maud, 1890-1971 [Illustrator]; Petersham, Miska, 1888-1960 [Illustrator]",
+      "issued": "2006-02-01",
+      "paragraphs": 160
+    },
+    {
+      "id": 10293,
+      "title": "Relación historica de los sucesos de la rebelión de José Gabriel Tupac-Amaru en las provincias del Peru, el año de 1780",
+      "authors": "Anonymous",
+      "issued": "2003-11-01",
+      "paragraphs": 144
+    },
+    {
+      "id": 10506,
+      "title": "Romance de lobos, comedia barbara",
+      "authors": "Valle-Inclán, Ramón del, 1866-1936",
+      "issued": "2003-12-01",
+      "paragraphs": 158
+    },
+    {
+      "id": 10821,
+      "title": "Manfredo Drama en tres actos",
+      "authors": "Byron, George Gordon Byron, Baron, 1788-1824",
+      "issued": "2004-01-01",
+      "paragraphs": 129
+    },
+    {
+      "id": 10822,
+      "title": "El paraiso de las mujeres Novela",
+      "authors": "Blasco Ibáñez, Vicente, 1867-1928",
+      "issued": "2004-01-01",
+      "paragraphs": 1123
+    },
+    {
+      "id": 10825,
+      "title": "La Navidad en las Montañas",
+      "authors": "Altamirano, Ignacio Manuel, 1834-1893",
+      "issued": "2004-01-01",
+      "paragraphs": 161
+    },
+    {
+      "id": 10909,
+      "title": "Los Amantes de Teruel Drama en cuatro actos en verso y prosa",
+      "authors": "Hartzenbusch, Juan Eugenio, 1806-1880; Umphrey, G. W. (George Wallace), 1878- [Editor]",
+      "issued": "2004-02-01",
+      "paragraphs": 164
+    },
+    {
+      "id": 11070,
+      "title": "La Fontana de Oro",
+      "authors": "Pérez Galdós, Benito, 1843-1920",
+      "issued": "2004-02-01",
+      "paragraphs": 1065
+    },
+    {
+      "id": 11071,
+      "title": "Naufragios de Alvar Núñez Cabeza de Vaca",
+      "authors": "Núñez Cabeza de Vaca, Alvar, active 16th century",
+      "issued": "2004-02-01",
+      "paragraphs": 28
+    },
+    {
+      "id": 11302,
+      "title": "Diario de la navegacion empredida en 1781 Desde el Rio Negro, para reconocer la Bahia de Todos los Santos, las Islas del Buen Suceso, y el desague del Rio Colorado",
+      "authors": "Villarino, Basilio, 1741-1785",
+      "issued": "2004-02-01",
+      "paragraphs": 135
+    },
+    {
+      "id": 11529,
+      "title": "La Espuma Obras completas de D. Armando Palacio Valdés, Tomo 7.",
+      "authors": "Palacio Valdés, Armando, 1853-1938",
+      "issued": "2004-03-01",
+      "paragraphs": 809
+    },
+    {
+      "id": 11598,
+      "title": "La Montaña",
+      "authors": "Reclus, Elisée, 1830-1905",
+      "issued": "2004-03-01",
+      "paragraphs": 257
+    },
+    {
+      "id": 11657,
+      "title": "La Niña de Luzmela",
+      "authors": "Espina, Concha, 1869-1955",
+      "issued": "2004-03-01",
+      "paragraphs": 305
+    },
+    {
+      "id": 11663,
+      "title": "El Arroyo",
+      "authors": "Reclus, Elisée, 1830-1905; López Rodrigo, A.‏ [Translator]",
+      "issued": "2004-03-01",
+      "paragraphs": 232
+    },
+    {
+      "id": 11669,
+      "title": "La Puerta de Bronce y Otros Cuentos",
+      "authors": "Romero de Terreros, Manuel, marqués de San Francisco, 1880-1968",
+      "issued": "2004-03-01",
+      "paragraphs": 146
+    },
+    {
+      "id": 12274,
+      "title": "Viajes por Filipinas: De Manila á Marianas",
+      "authors": "Alvarez Guerra, Juan, 1843-1905",
+      "issued": "2004-05-01",
+      "paragraphs": 437
+    },
+    {
+      "id": 12275,
+      "title": "Viajes por Filipinas: De Manila á Albay",
+      "authors": "Alvarez Guerra, Juan, 1843-1905",
+      "issued": "2004-05-01",
+      "paragraphs": 386
+    },
+    {
+      "id": 12276,
+      "title": "Viajes por Filipinas: De Manila á Tayabas",
+      "authors": "Alvarez Guerra, Juan, 1843-1905",
+      "issued": "2004-05-01",
+      "paragraphs": 466
+    },
+    {
+      "id": 12435,
+      "title": "Paginas Sudamericanas",
+      "authors": "Phipps, Helen",
+      "issued": "2004-05-01",
+      "paragraphs": 334
+    },
+    {
+      "id": 12457,
+      "title": "El Diablo Cojuelo",
+      "authors": "Vélez de Guevara, Luis, 1579-1644",
+      "issued": "2004-05-01",
+      "paragraphs": 668
+    },
+    {
+      "id": 12500,
+      "title": "Buena Nueva de acuerdo a Mateo: Traducción de dominio público abierta a mejoras",
+      "authors": "",
+      "issued": "2004-05-01",
+      "paragraphs": 237
+    },
+    {
+      "id": 12501,
+      "title": "Buena Nueva de acuerdo a Marcos: Traducción de dominio público abierta a mejoras",
+      "authors": "",
+      "issued": "2004-05-01",
+      "paragraphs": 147
+    },
+    {
+      "id": 12502,
+      "title": "Buena Nueva de acuerdo a Lucas: Traducción de dominio público abierta a mejoras",
+      "authors": "",
+      "issued": "2004-05-01",
+      "paragraphs": 240
+    },
+    {
+      "id": 12503,
+      "title": "Buena Nueva de acuerdo a Juan: Traducción de dominio público abierta a mejoras",
+      "authors": "",
+      "issued": "2004-05-01",
+      "paragraphs": 172
+    },
+    {
+      "id": 12627,
+      "title": "Escenas Montañesas",
+      "authors": "Pereda, José María de, 1833-1906",
+      "issued": "2004-06-01",
+      "paragraphs": 703
+    },
+    {
+      "id": 12840,
+      "title": "Logica",
+      "authors": "Piquer, Andres, 1711-1772",
+      "issued": "2004-07-07",
+      "paragraphs": 230
+    },
+    {
+      "id": 12848,
+      "title": "Las inquietudes de Shanti Andia",
+      "authors": "Baroja, Pío, 1872-1956",
+      "issued": "2004-07-08",
+      "paragraphs": 975
+    },
+    {
+      "id": 13210,
+      "title": "El Comendador Mendoza Obras Completas Tomo VII",
+      "authors": "Valera, Juan, 1824-1905",
+      "issued": "2004-08-18",
+      "paragraphs": 560
+    },
+    {
+      "id": 13216,
+      "title": "Diario histórico de la rebelion y guerra de los pueblos Guaranis situados en la costa oriental del Rio Uruguay, del año de 1754",
+      "authors": "Henis, Tadéas Xavier, 1711-",
+      "issued": "2004-08-18",
+      "paragraphs": 121
+    },
+    {
+      "id": 13264,
+      "title": "Zalacaín El Aventurero (Historia de las buenas andanzas y fortunas de Martín Zalacaín el Aventurero)",
+      "authors": "Baroja, Pío, 1872-1956",
+      "issued": "2004-08-23",
+      "paragraphs": 398
+    },
+    {
+      "id": 13458,
+      "title": "Derroteros y viages à la Ciudad Encantada, ó de los Césares. Que se creia existiese en la Cordillera, al sud de Valdivia.",
+      "authors": "Angelis, Pedro de, 1784-1859 [Editor]",
+      "issued": "2004-09-14",
+      "paragraphs": 149
+    },
+    {
+      "id": 13479,
+      "title": "Descripción Geografica, Histórica y Estadística de Bolivia, Tomo 1.",
+      "authors": "Orbigny, Alcide Dessalines d', 1802-1857",
+      "issued": "2004-09-16",
+      "paragraphs": 739
+    },
+    {
+      "id": 13492,
+      "title": "Viajes por Europa y América",
+      "authors": "Petano y Mazariegos, Gorgonio",
+      "issued": "2004-09-18",
+      "paragraphs": 695
+    },
+    {
+      "id": 13507,
+      "title": "Cuentos de Amor de Locura y de Muerte",
+      "authors": "Quiroga, Horacio, 1878-1937",
+      "issued": "2004-09-20",
+      "paragraphs": 505
+    },
+    {
+      "id": 13516,
+      "title": "Expedición de Catalanes y Aragoneses al Oriente",
+      "authors": "Moncada, Francisco de, 1586-1635",
+      "issued": "2004-09-23",
+      "paragraphs": 229
+    },
+    {
+      "id": 13519,
+      "title": "La Tierra de Todos",
+      "authors": "Blasco Ibáñez, Vicente, 1867-1928",
+      "issued": "2004-09-24",
+      "paragraphs": 1088
+    },
+    {
+      "id": 13608,
+      "title": "Filosofía Fundamental, Tomo I",
+      "authors": "Balmes, Jaime Luciano, 1810-1848",
+      "issued": "2004-10-05",
+      "paragraphs": 715
+    },
+    {
+      "id": 13904,
+      "title": "Un antiguo rencor",
+      "authors": "Ohnet, Georges, 1848-1918",
+      "issued": "2004-10-31",
+      "paragraphs": 420
+    },
+    {
+      "id": 14236,
+      "title": "En el fondo del abismo: La justicia infalible",
+      "authors": "Ohnet, Georges, 1848-1918",
+      "issued": "2004-12-02",
+      "paragraphs": 785
+    },
+    {
+      "id": 14307,
+      "title": "Reseña Veridica de la Revolución Filipina",
+      "authors": "Aguinaldo, Emilio, 1869-1964",
+      "issued": "2004-12-09",
+      "paragraphs": 138
+    },
+    {
+      "id": 14308,
+      "title": "El préstamo de la difunta",
+      "authors": "Blasco Ibáñez, Vicente, 1867-1928",
+      "issued": "2004-12-09",
+      "paragraphs": 879
+    },
+    {
+      "id": 14311,
+      "title": "Bailén",
+      "authors": "Pérez Galdós, Benito, 1843-1920",
+      "issued": "2004-12-09",
+      "paragraphs": 493
+    },
+    {
+      "id": 14318,
+      "title": "Belarmino y Apolonio",
+      "authors": "Pérez de Ayala, Ramón, 1880-1962",
+      "issued": "2004-12-10",
+      "paragraphs": 356
+    },
+    {
+      "id": 14329,
+      "title": "Viajes de un Colombiano en Europa, primera serie",
+      "authors": "Samper, José María, 1828-1888",
+      "issued": "2004-12-11",
+      "paragraphs": 1354
+    },
+    {
+      "id": 14722,
+      "title": "Contestaciones y Consideraciones Al Pueblo y Congreso Norte-Americanos",
+      "authors": "Mabini, Apolinario, 1864-1903",
+      "issued": "2005-01-17",
+      "paragraphs": 46
+    },
+    {
+      "id": 14765,
+      "title": "El Gaucho Martín Fierro",
+      "authors": "Hernández, José, 1834-1886",
+      "issued": "2005-01-23",
+      "paragraphs": 10
+    },
+    {
+      "id": 14795,
+      "title": "Junto Al Pasig",
+      "authors": "Rizal, José, 1861-1896",
+      "issued": "2005-01-25",
+      "paragraphs": 22
+    },
+    {
+      "id": 14796,
+      "title": "El Consejo de los Dioses",
+      "authors": "Rizal, José, 1861-1896",
+      "issued": "2005-01-25",
+      "paragraphs": 26
+    },
+    {
+      "id": 14839,
+      "title": "Filipinas Dentro De Cien Años (Estudio Politico-Social)",
+      "authors": "Rizal, José, 1861-1896",
+      "issued": "2005-01-30",
+      "paragraphs": 83
+    },
+    {
+      "id": 14944,
+      "title": "La Barraca",
+      "authors": "Blasco Ibáñez, Vicente, 1867-1928",
+      "issued": "2005-02-07",
+      "paragraphs": 703
+    },
+    {
+      "id": 14995,
+      "title": "Los Hombres de Pro",
+      "authors": "Pereda, José María de, 1833-1906",
+      "issued": "2005-02-09",
+      "paragraphs": 493
+    },
+    {
+      "id": 15027,
+      "title": "La Novela Picaresca",
+      "authors": "Ruiz Morcuende, Federico, 1890- [Editor]",
+      "issued": "2005-02-12",
+      "paragraphs": 312
+    },
+    {
+      "id": 15046,
+      "title": "Un paseo por Paris, retratos al natural",
+      "authors": "Barcia, Roque, 1823?-1885",
+      "issued": "2005-02-14",
+      "paragraphs": 1074
+    },
+    {
+      "id": 15054,
+      "title": "Viajes de un Colombiano en Europa, segunda serie",
+      "authors": "Samper, José María, 1828-1888",
+      "issued": "2005-02-14",
+      "paragraphs": 898
+    }
+  ],
+  "csv_sha256": "c8dd99ca1db3666493ceb999791e632013c62729b09cc169cbd58fd600696e7d",
+  "csv_bytes": 17087434
+}

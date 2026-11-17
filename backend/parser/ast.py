@@ -45,6 +45,7 @@ class StorageType(Enum):
 class IndexType(Enum):
     BTREE = auto()
     HASH = auto()
+    INVERTED = auto()
 
 
 # Expressions
@@ -90,6 +91,16 @@ class IdExp(Exp):
         return visitor.visit_id_exp(self)
 
 
+@dataclass
+class MatchExp(Exp):
+    """columna MATCH 'consulta' (recuperacion textual, P2 Parte 3)."""
+    column: str
+    query: str
+
+    def accept(self, visitor: Visitor[S, E]) -> E:
+        return visitor.visit_match_exp(self)
+
+
 # Table definitions
 
 @dataclass
@@ -133,6 +144,7 @@ class CreateIndexStm(Stm):
     table: str
     column: str
     index_type: IndexType
+    options: dict[str, str | int] | None = None
 
     def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_create_index(self)
@@ -164,6 +176,23 @@ class SelectStm(Stm):
     force_seqscan: bool = False
     force_all_indexes: bool = False
     where: Exp | None = None
+    # Extensiones del modulo textual. 'columns' conserva solo columnas de la
+    # tabla; COSINE_SCORE() se describe aparte con su alias y su posicion en
+    # la lista de salida.
+    score_alias: str | None = None
+    score_position: int | None = None
+    order_by: str | None = None
+    order_desc: bool = False
+    limit: int | None = None
+
+    def output_columns(self) -> list[str] | None:
+        """Nombres de salida en orden, incluido el alias del score."""
+        if self.columns is None and self.score_alias is None:
+            return None
+        names = list(self.columns or [])
+        if self.score_alias is not None:
+            names.insert(self.score_position or 0, self.score_alias)
+        return names
 
     def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_select(self)

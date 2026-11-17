@@ -17,6 +17,7 @@ from .ast import (
     UnaryExp,
     LiteralExp,
     IdExp,
+    MatchExp,
     ColumnDef,
     DataType,
     StorageType,
@@ -87,7 +88,31 @@ def _storage_kind(storage: StorageType) -> StorageKind:
 def _index_kind(index_type: IndexType) -> IndexKind:
     if index_type is IndexType.HASH:
         return IndexKind.HASH
+    if index_type is IndexType.INVERTED:
+        return IndexKind.INVERTED
     return IndexKind.BTREE
+
+
+def _collect_matches(expression) -> list[MatchExp]:
+    found: list[MatchExp] = []
+
+    def visit(node) -> None:
+        if isinstance(node, MatchExp):
+            found.append(node)
+        elif isinstance(node, BinaryExp):
+            visit(node.left)
+            visit(node.right)
+        elif isinstance(node, UnaryExp):
+            visit(node.value)
+
+    visit(expression)
+    return found
+
+
+def _top_level_conjuncts(expression) -> list:
+    if isinstance(expression, BinaryExp) and expression.op is BinaryOp.AND:
+        return _top_level_conjuncts(expression.left) + _top_level_conjuncts(expression.right)
+    return [expression]
 
 
 def _table_meta_from_columns(
@@ -243,6 +268,20 @@ class SemanticVisitor(Visitor[None, None]):
                 f"Error semantico: el indice '{node.name}' ya existe"
             )
 
+        if node.index_type is IndexType.INVERTED:
+            from textindex.options import normalize_text_options
+            if metadata is not None:
+                if self._column_type(metadata, node.column) != 'CHAR':
+                    raise ValueError(
+                        f"Error semantico: el indice INVERTED requiere una "
+                        f"columna CHAR y '{node.column}' no lo es"
+                    )
+            normalize_text_options(node.options)
+        elif node.options:
+            raise ValueError(
+                "Error semantico: WITH (...) solo se admite en indices INVERTED"
+            )
+
         self._new_indexes[node.name] = _IndexInfo(
             table=node.table,
             column=node.column,
@@ -332,6 +371,7 @@ class SemanticVisitor(Visitor[None, None]):
                 self._require_column(metadata, column)
 
         self._validate_where(metadata, node.where)
+        self._validate_text_select(node, metadata)
 
         self._validate_force(
             node.table, node.force_indexes, node.force_seqscan, node.force_all_indexes
@@ -344,11 +384,49 @@ class SemanticVisitor(Visitor[None, None]):
             )
 
         metadata = self._get_table_meta(node.table)
+        if node.where is not None and _collect_matches(node.where):
+            raise ValueError(
+                "Error semantico: MATCH solo se admite en SELECT"
+            )
         self._validate_where(metadata, node.where)
 
         self._validate_force(
             node.table, node.force_indexes, node.force_seqscan, node.force_all_indexes
         )
+
+    def _validate_text_select(self, node: SelectStm, metadata) -> None:
+        """Reglas de MATCH, COSINE_SCORE, ORDER BY y LIMIT."""
+        matches = _collect_matches(node.where) if node.where is not None else []
+        if len(matches) > 1:
+            raise ValueError(
+                "Error semantico: solo se admite un MATCH por consulta"
+            )
+        if matches and not any(
+            isinstance(item, MatchExp) for item in _top_level_conjuncts(node.where)
+        ):
+            raise ValueError(
+                "Error semantico: MATCH debe combinarse con el resto del WHERE "
+                "solo mediante AND (no dentro de OR ni de NOT)"
+            )
+        if node.score_alias is not None and not matches:
+            raise ValueError(
+                "Error semantico: COSINE_SCORE() requiere un MATCH en el WHERE"
+            )
+        if node.score_alias is not None and metadata is not None:
+            try:
+                metadata.col_index(node.score_alias)
+            except ValueError:
+                pass
+            else:
+                raise ValueError(
+                    f"Error semantico: el alias '{node.score_alias}' coincide "
+                    f"con una columna de '{metadata.name}'"
+                )
+        if node.order_by is not None and node.order_by != node.score_alias:
+            if metadata is not None:
+                self._require_column(metadata, node.order_by)
+        if node.limit is not None and node.limit < 0:
+            raise ValueError("Error semantico: LIMIT debe ser no negativo")
 
     def _validate_force(
         self,
@@ -423,6 +501,17 @@ class SemanticVisitor(Visitor[None, None]):
 
     def visit_id_exp(self, node: IdExp) -> None:
         pass
+
+    def visit_match_exp(self, node: MatchExp) -> None:
+        table = self._current_table
+        if table is None:
+            return
+        self._require_column(table, node.column)
+        if self._column_type(table, node.column) != 'CHAR':
+            raise ValueError(
+                f"Error semantico: MATCH requiere una columna CHAR y "
+                f"'{node.column}' no lo es"
+            )
 
     def _validate_comparison(self, node: BinaryExp) -> None:
         left = node.left

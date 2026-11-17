@@ -37,6 +37,18 @@ class TokenType(Enum):
     BTREE = auto()
     HASH = auto()
 
+    # Modulo textual (P2, Parte 3)
+    INVERTED = auto()
+    WITH = auto()
+    MATCH = auto()
+    ORDER = auto()
+    BY = auto()
+    LIMIT = auto()
+    ASC = auto()
+    DESC = auto()
+    AS = auto()
+    COSINE_SCORE = auto()
+
     AND = auto()
     OR = auto()
     NOT = auto()

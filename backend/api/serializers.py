@@ -47,6 +47,7 @@ def node_to_dict(node: NodeMetrics | None) -> dict | None:
         'self_pages_written': node.self_pages_written,
         'operations': [operation_to_dict(item) for item in node.operations],
         'children': [node_to_dict(child) for child in node.children],
+        'detail': node.detail,
     }
 
 
@@ -116,12 +117,53 @@ def table_to_dict(entry: TableEntry) -> dict:
 
 
 def index_to_dict(index: IndexMetadata) -> dict:
-    return {
+    payload = {
         'name': index.name,
         'table': index.table,
         'column': index.column,
         'type': index.kind.value,
     }
+    if index.options:
+        payload['options'] = dict(index.options)
+    return payload
+
+
+# Recursos que cuentan como lecturas de la tabla de datos; el resto son
+# estructuras de indice (B+, Hash, invertido).
+_TABLE_RESOURCES = {'HeapFile', 'SequentialFile'}
+
+
+def io_breakdown(node: NodeMetrics | None) -> dict:
+    """
+    Desglose de bloques leidos/escritos en indices y en la tabla de datos
+    (enunciado P2, 5.4: telemetria del planificador multimodal).
+    """
+    totals = {'index_reads': 0, 'index_writes': 0, 'table_reads': 0, 'table_writes': 0}
+
+    def visit(item: NodeMetrics) -> None:
+        for operation in item.operations:
+            target = 'table' if operation.resource_type in _TABLE_RESOURCES else 'index'
+            totals[f'{target}_reads'] += operation.pages_read
+            totals[f'{target}_writes'] += operation.pages_written
+        for child in item.children:
+            visit(child)
+
+    if node is not None:
+        visit(node)
+    return totals
+
+
+def text_strategy(node: NodeMetrics | None) -> str | None:
+    """Estrategia textual del plan (INDEX_ONLY, PRE_FILTER, ...), si existe."""
+    if node is None:
+        return None
+    if node.node_type in ('TextIndexScanPlan', 'FullTextScanPlan') and node.detail:
+        return node.detail.split(';', 1)[0]
+    for child in node.children:
+        found = text_strategy(child)
+        if found:
+            return found
+    return None
 
 
 def catalog_tables(catalog: Catalog) -> dict:
@@ -163,4 +205,6 @@ def frontend_output(output: ExecutionOutput, program, parse_ms: float, execution
             'disk_writes': sum(root.pages_written for root in roots),
             'parse_ms': parse_ms, 'execution_ms': execution_ms,
         },
+        'io_breakdown': io_breakdown(explain.root) if explain else None,
+        'strategy': text_strategy(explain.root) if explain else None,
     }

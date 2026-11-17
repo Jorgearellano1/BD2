@@ -1,0 +1,2722 @@
+[
+ {
+  "qid": "term1_00",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "indignación"
+  ],
+  "neg": [],
+  "match": "indignación",
+  "tsquery": "indignación"
+ },
+ {
+  "qid": "term1_01",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "justicia"
+  ],
+  "neg": [],
+  "match": "justicia",
+  "tsquery": "justicia"
+ },
+ {
+  "qid": "term1_02",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "cocidas"
+  ],
+  "neg": [],
+  "match": "cocidas",
+  "tsquery": "cocidas"
+ },
+ {
+  "qid": "term1_03",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "conceder"
+  ],
+  "neg": [],
+  "match": "conceder",
+  "tsquery": "conceder"
+ },
+ {
+  "qid": "term1_04",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "mentira"
+  ],
+  "neg": [],
+  "match": "mentira",
+  "tsquery": "mentira"
+ },
+ {
+  "qid": "term1_05",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "cerrar"
+  ],
+  "neg": [],
+  "match": "cerrar",
+  "tsquery": "cerrar"
+ },
+ {
+  "qid": "term1_06",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "risa"
+  ],
+  "neg": [],
+  "match": "risa",
+  "tsquery": "risa"
+ },
+ {
+  "qid": "term1_07",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "perú"
+  ],
+  "neg": [],
+  "match": "perú",
+  "tsquery": "perú"
+ },
+ {
+  "qid": "term1_08",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "pues"
+  ],
+  "neg": [],
+  "match": "pues",
+  "tsquery": "pues"
+ },
+ {
+  "qid": "term1_09",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "quebrantamiento"
+  ],
+  "neg": [],
+  "match": "quebrantamiento",
+  "tsquery": "quebrantamiento"
+ },
+ {
+  "qid": "term1_10",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "fachada"
+  ],
+  "neg": [],
+  "match": "fachada",
+  "tsquery": "fachada"
+ },
+ {
+  "qid": "term1_11",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "trataba"
+  ],
+  "neg": [],
+  "match": "trataba",
+  "tsquery": "trataba"
+ },
+ {
+  "qid": "term1_12",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "hablaba"
+  ],
+  "neg": [],
+  "match": "hablaba",
+  "tsquery": "hablaba"
+ },
+ {
+  "qid": "term1_13",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "revelatam"
+  ],
+  "neg": [],
+  "match": "revelatam",
+  "tsquery": "revelatam"
+ },
+ {
+  "qid": "term1_14",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "ménos"
+  ],
+  "neg": [],
+  "match": "ménos",
+  "tsquery": "ménos"
+ },
+ {
+  "qid": "term1_15",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "cobre"
+  ],
+  "neg": [],
+  "match": "cobre",
+  "tsquery": "cobre"
+ },
+ {
+  "qid": "term1_16",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "luna"
+  ],
+  "neg": [],
+  "match": "luna",
+  "tsquery": "luna"
+ },
+ {
+  "qid": "term1_17",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "guaporé"
+  ],
+  "neg": [],
+  "match": "guaporé",
+  "tsquery": "guaporé"
+ },
+ {
+  "qid": "term1_18",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "robusto"
+  ],
+  "neg": [],
+  "match": "robusto",
+  "tsquery": "robusto"
+ },
+ {
+  "qid": "term1_19",
+  "kind": "term",
+  "k": 1,
+  "words": [
+   "cesando"
+  ],
+  "neg": [],
+  "match": "cesando",
+  "tsquery": "cesando"
+ },
+ {
+  "qid": "and3_00",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "balanceaban",
+   "trabajo",
+   "huapi"
+  ],
+  "neg": [],
+  "match": "balanceaban AND trabajo AND huapi",
+  "tsquery": "balanceaban & trabajo & huapi"
+ },
+ {
+  "qid": "and3_01",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "pueblo",
+   "dioses",
+   "sacó"
+  ],
+  "neg": [],
+  "match": "pueblo AND dioses AND sacó",
+  "tsquery": "pueblo & dioses & sacó"
+ },
+ {
+  "qid": "and3_02",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "nudos",
+   "dentro",
+   "silencio"
+  ],
+  "neg": [],
+  "match": "nudos AND dentro AND silencio",
+  "tsquery": "nudos & dentro & silencio"
+ },
+ {
+  "qid": "and3_03",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "joya",
+   "caballeros",
+   "antigua"
+  ],
+  "neg": [],
+  "match": "joya AND caballeros AND antigua",
+  "tsquery": "joya & caballeros & antigua"
+ },
+ {
+  "qid": "and3_04",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "período",
+   "cambiaba",
+   "largo"
+  ],
+  "neg": [],
+  "match": "período AND cambiaba AND largo",
+  "tsquery": "período & cambiaba & largo"
+ },
+ {
+  "qid": "and3_05",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "miseria",
+   "plena",
+   "rabo"
+  ],
+  "neg": [],
+  "match": "miseria AND plena AND rabo",
+  "tsquery": "miseria & plena & rabo"
+ },
+ {
+  "qid": "and3_06",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "salvador",
+   "mismos",
+   "envolviéndose"
+  ],
+  "neg": [],
+  "match": "salvador AND mismos AND envolviéndose",
+  "tsquery": "salvador & mismos & envolviéndose"
+ },
+ {
+  "qid": "and3_07",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "carita",
+   "mismo",
+   "vicios"
+  ],
+  "neg": [],
+  "match": "carita AND mismo AND vicios",
+  "tsquery": "carita & mismo & vicios"
+ },
+ {
+  "qid": "and3_08",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "particulares",
+   "ostentaba",
+   "lugar"
+  ],
+  "neg": [],
+  "match": "particulares AND ostentaba AND lugar",
+  "tsquery": "particulares & ostentaba & lugar"
+ },
+ {
+  "qid": "and3_09",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "llegó",
+   "siguiente",
+   "casi"
+  ],
+  "neg": [],
+  "match": "llegó AND siguiente AND casi",
+  "tsquery": "llegó & siguiente & casi"
+ },
+ {
+  "qid": "and3_10",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "españa",
+   "meterse",
+   "cosa"
+  ],
+  "neg": [],
+  "match": "españa AND meterse AND cosa",
+  "tsquery": "españa & meterse & cosa"
+ },
+ {
+  "qid": "and3_11",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "naturales",
+   "menospreciando",
+   "todas"
+  ],
+  "neg": [],
+  "match": "naturales AND menospreciando AND todas",
+  "tsquery": "naturales & menospreciando & todas"
+ },
+ {
+  "qid": "and3_12",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "responsabilidad",
+   "hiciste",
+   "sido"
+  ],
+  "neg": [],
+  "match": "responsabilidad AND hiciste AND sido",
+  "tsquery": "responsabilidad & hiciste & sido"
+ },
+ {
+  "qid": "and3_13",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "hora",
+   "pequeña",
+   "villa"
+  ],
+  "neg": [],
+  "match": "hora AND pequeña AND villa",
+  "tsquery": "hora & pequeña & villa"
+ },
+ {
+  "qid": "and3_14",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "caliente",
+   "hirviendo",
+   "puerro"
+  ],
+  "neg": [],
+  "match": "caliente AND hirviendo AND puerro",
+  "tsquery": "caliente & hirviendo & puerro"
+ },
+ {
+  "qid": "and3_15",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "acercaron",
+   "sombreros",
+   "suprimir"
+  ],
+  "neg": [],
+  "match": "acercaron AND sombreros AND suprimir",
+  "tsquery": "acercaron & sombreros & suprimir"
+ },
+ {
+  "qid": "and3_16",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "misma",
+   "siempre",
+   "táctica"
+  ],
+  "neg": [],
+  "match": "misma AND siempre AND táctica",
+  "tsquery": "misma & siempre & táctica"
+ },
+ {
+  "qid": "and3_17",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "lentejas",
+   "garbanços",
+   "espárragos"
+  ],
+  "neg": [],
+  "match": "lentejas AND garbanços AND espárragos",
+  "tsquery": "lentejas & garbanços & espárragos"
+ },
+ {
+  "qid": "and3_18",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "tomarás",
+   "pondrán",
+   "matarás"
+  ],
+  "neg": [],
+  "match": "tomarás AND pondrán AND matarás",
+  "tsquery": "tomarás & pondrán & matarás"
+ },
+ {
+  "qid": "and3_19",
+  "kind": "and",
+  "k": 3,
+  "words": [
+   "hijo",
+   "joven",
+   "oficial"
+  ],
+  "neg": [],
+  "match": "hijo AND joven AND oficial",
+  "tsquery": "hijo & joven & oficial"
+ },
+ {
+  "qid": "and5_00",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "todas",
+   "amonita",
+   "años",
+   "diecisiete",
+   "señor"
+  ],
+  "neg": [],
+  "match": "todas AND amonita AND años AND diecisiete AND señor",
+  "tsquery": "todas & amonita & años & diecisiete & señor"
+ },
+ {
+  "qid": "and5_01",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "seguramente",
+   "provincias",
+   "alguna",
+   "título",
+   "reino"
+  ],
+  "neg": [],
+  "match": "seguramente AND provincias AND alguna AND título AND reino",
+  "tsquery": "seguramente & provincias & alguna & título & reino"
+ },
+ {
+  "qid": "and5_02",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "esparcirás",
+   "pondrás",
+   "manos",
+   "ternilla",
+   "luego"
+  ],
+  "neg": [],
+  "match": "esparcirás AND pondrás AND manos AND ternilla AND luego",
+  "tsquery": "esparcirás & pondrás & manos & ternilla & luego"
+ },
+ {
+  "qid": "and5_03",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "primer",
+   "órden",
+   "corresponda",
+   "sufrido",
+   "indicaré"
+  ],
+  "neg": [],
+  "match": "primer AND órden AND corresponda AND sufrido AND indicaré",
+  "tsquery": "primer & órden & corresponda & sufrido & indicaré"
+ },
+ {
+  "qid": "and5_04",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "porcelana",
+   "campos",
+   "paris",
+   "varias",
+   "versalles"
+  ],
+  "neg": [],
+  "match": "porcelana AND campos AND paris AND varias AND versalles",
+  "tsquery": "porcelana & campos & paris & varias & versalles"
+ },
+ {
+  "qid": "and5_05",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "becerros",
+   "carneros",
+   "dedicación",
+   "ofrecieron",
+   "machos"
+  ],
+  "neg": [],
+  "match": "becerros AND carneros AND dedicación AND ofrecieron AND machos",
+  "tsquery": "becerros & carneros & dedicación & ofrecieron & machos"
+ },
+ {
+  "qid": "and5_06",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "singular",
+   "cama",
+   "hora",
+   "nota",
+   "costumbre"
+  ],
+  "neg": [],
+  "match": "singular AND cama AND hora AND nota AND costumbre",
+  "tsquery": "singular & cama & hora & nota & costumbre"
+ },
+ {
+  "qid": "and5_07",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "valeroso",
+   "acertado",
+   "paga",
+   "cumplir",
+   "aquel"
+  ],
+  "neg": [],
+  "match": "valeroso AND acertado AND paga AND cumplir AND aquel",
+  "tsquery": "valeroso & acertado & paga & cumplir & aquel"
+ },
+ {
+  "qid": "and5_08",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "impedir",
+   "verá",
+   "admirablemente",
+   "salón",
+   "examine"
+  ],
+  "neg": [],
+  "match": "impedir AND verá AND admirablemente AND salón AND examine",
+  "tsquery": "impedir & verá & admirablemente & salón & examine"
+ },
+ {
+  "qid": "and5_09",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "negros",
+   "atraer",
+   "verdosa",
+   "gran",
+   "mayor"
+  ],
+  "neg": [],
+  "match": "negros AND atraer AND verdosa AND gran AND mayor",
+  "tsquery": "negros & atraer & verdosa & gran & mayor"
+ },
+ {
+  "qid": "and5_10",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "puerto",
+   "estrecho",
+   "navegar",
+   "hizo",
+   "pueblo"
+  ],
+  "neg": [],
+  "match": "puerto AND estrecho AND navegar AND hizo AND pueblo",
+  "tsquery": "puerto & estrecho & navegar & hizo & pueblo"
+ },
+ {
+  "qid": "and5_11",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "sino",
+   "conozca",
+   "pensante",
+   "sienta",
+   "visto"
+  ],
+  "neg": [],
+  "match": "sino AND conozca AND pensante AND sienta AND visto",
+  "tsquery": "sino & conozca & pensante & sienta & visto"
+ },
+ {
+  "qid": "and5_12",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "primeros",
+   "ruda",
+   "pudieran",
+   "pilares",
+   "gruta"
+  ],
+  "neg": [],
+  "match": "primeros AND ruda AND pudieran AND pilares AND gruta",
+  "tsquery": "primeros & ruda & pudieran & pilares & gruta"
+ },
+ {
+  "qid": "and5_13",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "daba",
+   "rutina",
+   "rebeca",
+   "limosnas",
+   "días"
+  ],
+  "neg": [],
+  "match": "daba AND rutina AND rebeca AND limosnas AND días",
+  "tsquery": "daba & rutina & rebeca & limosnas & días"
+ },
+ {
+  "qid": "and5_14",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "último",
+   "carlos",
+   "sintió",
+   "evitar",
+   "cosas"
+  ],
+  "neg": [],
+  "match": "último AND carlos AND sintió AND evitar AND cosas",
+  "tsquery": "último & carlos & sintió & evitar & cosas"
+ },
+ {
+  "qid": "and5_15",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "espacio",
+   "rayos",
+   "sonora",
+   "solemnidad",
+   "sentir"
+  ],
+  "neg": [],
+  "match": "espacio AND rayos AND sonora AND solemnidad AND sentir",
+  "tsquery": "espacio & rayos & sonora & solemnidad & sentir"
+ },
+ {
+  "qid": "and5_16",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "fundaron",
+   "pues",
+   "apertura",
+   "navegado",
+   "deleznable"
+  ],
+  "neg": [],
+  "match": "fundaron AND pues AND apertura AND navegado AND deleznable",
+  "tsquery": "fundaron & pues & apertura & navegado & deleznable"
+ },
+ {
+  "qid": "and5_17",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "planes",
+   "industrial",
+   "pereza",
+   "deja",
+   "mejor"
+  ],
+  "neg": [],
+  "match": "planes AND industrial AND pereza AND deja AND mejor",
+  "tsquery": "planes & industrial & pereza & deja & mejor"
+ },
+ {
+  "qid": "and5_18",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "adelante",
+   "llegaban",
+   "celillos",
+   "contó",
+   "respondió"
+  ],
+  "neg": [],
+  "match": "adelante AND llegaban AND celillos AND contó AND respondió",
+  "tsquery": "adelante & llegaban & celillos & contó & respondió"
+ },
+ {
+  "qid": "and5_19",
+  "kind": "and",
+  "k": 5,
+  "words": [
+   "della",
+   "posibilitado",
+   "comenzar",
+   "hiciérades",
+   "hallara"
+  ],
+  "neg": [],
+  "match": "della AND posibilitado AND comenzar AND hiciérades AND hallara",
+  "tsquery": "della & posibilitado & comenzar & hiciérades & hallara"
+ },
+ {
+  "qid": "or3_00",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "misa",
+   "decía",
+   "sacerdotes"
+  ],
+  "neg": [],
+  "match": "misa OR decía OR sacerdotes",
+  "tsquery": "misa | decía | sacerdotes"
+ },
+ {
+  "qid": "or3_01",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "corríamos",
+   "limpios",
+   "dicho"
+  ],
+  "neg": [],
+  "match": "corríamos OR limpios OR dicho",
+  "tsquery": "corríamos | limpios | dicho"
+ },
+ {
+  "qid": "or3_02",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "hazañas",
+   "buscó",
+   "visto"
+  ],
+  "neg": [],
+  "match": "hazañas OR buscó OR visto",
+  "tsquery": "hazañas | buscó | visto"
+ },
+ {
+  "qid": "or3_03",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "asienta",
+   "buenos",
+   "pocos"
+  ],
+  "neg": [],
+  "match": "asienta OR buenos OR pocos",
+  "tsquery": "asienta | buenos | pocos"
+ },
+ {
+  "qid": "or3_04",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "referirle",
+   "celibato",
+   "dijese"
+  ],
+  "neg": [],
+  "match": "referirle OR celibato OR dijese",
+  "tsquery": "referirle | celibato | dijese"
+ },
+ {
+  "qid": "or3_05",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "indigna",
+   "esperar",
+   "soledad"
+  ],
+  "neg": [],
+  "match": "indigna OR esperar OR soledad",
+  "tsquery": "indigna | esperar | soledad"
+ },
+ {
+  "qid": "or3_06",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "celebro",
+   "envolviendo",
+   "vasta"
+  ],
+  "neg": [],
+  "match": "celebro OR envolviendo OR vasta",
+  "tsquery": "celebro | envolviendo | vasta"
+ },
+ {
+  "qid": "or3_07",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "niega",
+   "desdichado",
+   "mientras"
+  ],
+  "neg": [],
+  "match": "niega OR desdichado OR mientras",
+  "tsquery": "niega | desdichado | mientras"
+ },
+ {
+  "qid": "or3_08",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "pastor",
+   "criminalmente",
+   "dios"
+  ],
+  "neg": [],
+  "match": "pastor OR criminalmente OR dios",
+  "tsquery": "pastor | criminalmente | dios"
+ },
+ {
+  "qid": "or3_09",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "jesús",
+   "siguen",
+   "diciéndole"
+  ],
+  "neg": [],
+  "match": "jesús OR siguen OR diciéndole",
+  "tsquery": "jesús | siguen | diciéndole"
+ },
+ {
+  "qid": "or3_10",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "dones",
+   "filósofos",
+   "creído"
+  ],
+  "neg": [],
+  "match": "dones OR filósofos OR creído",
+  "tsquery": "dones | filósofos | creído"
+ },
+ {
+  "qid": "or3_11",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "santander",
+   "acontecer",
+   "petróleo"
+  ],
+  "neg": [],
+  "match": "santander OR acontecer OR petróleo",
+  "tsquery": "santander | acontecer | petróleo"
+ },
+ {
+  "qid": "or3_12",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "cáthedra",
+   "alguna",
+   "aquella"
+  ],
+  "neg": [],
+  "match": "cáthedra OR alguna OR aquella",
+  "tsquery": "cáthedra | alguna | aquella"
+ },
+ {
+  "qid": "or3_13",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "despejarse",
+   "contar",
+   "tesoros"
+  ],
+  "neg": [],
+  "match": "despejarse OR contar OR tesoros",
+  "tsquery": "despejarse | contar | tesoros"
+ },
+ {
+  "qid": "or3_14",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "hotel",
+   "hablar",
+   "hace"
+  ],
+  "neg": [],
+  "match": "hotel OR hablar OR hace",
+  "tsquery": "hotel | hablar | hace"
+ },
+ {
+  "qid": "or3_15",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "ciudad",
+   "sirve",
+   "espíritu"
+  ],
+  "neg": [],
+  "match": "ciudad OR sirve OR espíritu",
+  "tsquery": "ciudad | sirve | espíritu"
+ },
+ {
+  "qid": "or3_16",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "harvey",
+   "detuvo",
+   "mandaba"
+  ],
+  "neg": [],
+  "match": "harvey OR detuvo OR mandaba",
+  "tsquery": "harvey | detuvo | mandaba"
+ },
+ {
+  "qid": "or3_17",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "romanos",
+   "gente",
+   "libertad"
+  ],
+  "neg": [],
+  "match": "romanos OR gente OR libertad",
+  "tsquery": "romanos | gente | libertad"
+ },
+ {
+  "qid": "or3_18",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "nadie",
+   "ecrón",
+   "matrimonio"
+  ],
+  "neg": [],
+  "match": "nadie OR ecrón OR matrimonio",
+  "tsquery": "nadie | ecrón | matrimonio"
+ },
+ {
+  "qid": "or3_19",
+  "kind": "or",
+  "k": 3,
+  "words": [
+   "prometió",
+   "altura",
+   "descubrimiento"
+  ],
+  "neg": [],
+  "match": "prometió OR altura OR descubrimiento",
+  "tsquery": "prometió | altura | descubrimiento"
+ },
+ {
+  "qid": "or5_00",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "árbol",
+   "viaje",
+   "penas",
+   "parte",
+   "dirigente"
+  ],
+  "neg": [],
+  "match": "árbol OR viaje OR penas OR parte OR dirigente",
+  "tsquery": "árbol | viaje | penas | parte | dirigente"
+ },
+ {
+  "qid": "or5_01",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "antiguos",
+   "filipino",
+   "siempre",
+   "yace",
+   "maldiciendo"
+  ],
+  "neg": [],
+  "match": "antiguos OR filipino OR siempre OR yace OR maldiciendo",
+  "tsquery": "antiguos | filipino | siempre | yace | maldiciendo"
+ },
+ {
+  "qid": "or5_02",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "aquel",
+   "comenzaban",
+   "mirando",
+   "hierro",
+   "conocía"
+  ],
+  "neg": [],
+  "match": "aquel OR comenzaban OR mirando OR hierro OR conocía",
+  "tsquery": "aquel | comenzaban | mirando | hierro | conocía"
+ },
+ {
+  "qid": "or5_03",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "caridad",
+   "tales",
+   "clásico",
+   "resultó",
+   "velázquez"
+  ],
+  "neg": [],
+  "match": "caridad OR tales OR clásico OR resultó OR velázquez",
+  "tsquery": "caridad | tales | clásico | resultó | velázquez"
+ },
+ {
+  "qid": "or5_04",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "buenos",
+   "ojos",
+   "nagasaki",
+   "reino",
+   "papel"
+  ],
+  "neg": [],
+  "match": "buenos OR ojos OR nagasaki OR reino OR papel",
+  "tsquery": "buenos | ojos | nagasaki | reino | papel"
+ },
+ {
+  "qid": "or5_05",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "duquesa",
+   "atributos",
+   "mano",
+   "volví",
+   "profundidad"
+  ],
+  "neg": [],
+  "match": "duquesa OR atributos OR mano OR volví OR profundidad",
+  "tsquery": "duquesa | atributos | mano | volví | profundidad"
+ },
+ {
+  "qid": "or5_06",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "juzgué",
+   "ropa",
+   "boca",
+   "caído",
+   "posteriormente"
+  ],
+  "neg": [],
+  "match": "juzgué OR ropa OR boca OR caído OR posteriormente",
+  "tsquery": "juzgué | ropa | boca | caído | posteriormente"
+ },
+ {
+  "qid": "or5_07",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "dice",
+   "poeta",
+   "sólo",
+   "existe",
+   "quedaban"
+  ],
+  "neg": [],
+  "match": "dice OR poeta OR sólo OR existe OR quedaban",
+  "tsquery": "dice | poeta | sólo | existe | quedaban"
+ },
+ {
+  "qid": "or5_08",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "hombres",
+   "sola",
+   "pude",
+   "torpedos",
+   "viejo"
+  ],
+  "neg": [],
+  "match": "hombres OR sola OR pude OR torpedos OR viejo",
+  "tsquery": "hombres | sola | pude | torpedos | viejo"
+ },
+ {
+  "qid": "or5_09",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "vieja",
+   "viví",
+   "varios",
+   "repetía",
+   "quedó"
+  ],
+  "neg": [],
+  "match": "vieja OR viví OR varios OR repetía OR quedó",
+  "tsquery": "vieja | viví | varios | repetía | quedó"
+ },
+ {
+  "qid": "or5_10",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "cada",
+   "contaminarán",
+   "sciente",
+   "pescuezo",
+   "chibcha"
+  ],
+  "neg": [],
+  "match": "cada OR contaminarán OR sciente OR pescuezo OR chibcha",
+  "tsquery": "cada | contaminarán | sciente | pescuezo | chibcha"
+ },
+ {
+  "qid": "or5_11",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "ruda",
+   "ocultar",
+   "sacar",
+   "consigo",
+   "fabula"
+  ],
+  "neg": [],
+  "match": "ruda OR ocultar OR sacar OR consigo OR fabula",
+  "tsquery": "ruda | ocultar | sacar | consigo | fabula"
+ },
+ {
+  "qid": "or5_12",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "acrecentará",
+   "manos",
+   "labranza",
+   "extensamente",
+   "provincias"
+  ],
+  "neg": [],
+  "match": "acrecentará OR manos OR labranza OR extensamente OR provincias",
+  "tsquery": "acrecentará | manos | labranza | extensamente | provincias"
+ },
+ {
+  "qid": "or5_13",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "parte",
+   "superior",
+   "plaza",
+   "mataré",
+   "dice"
+  ],
+  "neg": [],
+  "match": "parte OR superior OR plaza OR mataré OR dice",
+  "tsquery": "parte | superior | plaza | mataré | dice"
+ },
+ {
+  "qid": "or5_14",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "escarmentar",
+   "casuca",
+   "campamento",
+   "rimón",
+   "temblaban"
+  ],
+  "neg": [],
+  "match": "escarmentar OR casuca OR campamento OR rimón OR temblaban",
+  "tsquery": "escarmentar | casuca | campamento | rimón | temblaban"
+ },
+ {
+  "qid": "or5_15",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "aprobaron",
+   "curioso",
+   "darás",
+   "plaza",
+   "rica"
+  ],
+  "neg": [],
+  "match": "aprobaron OR curioso OR darás OR plaza OR rica",
+  "tsquery": "aprobaron | curioso | darás | plaza | rica"
+ },
+ {
+  "qid": "or5_16",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "afligieron",
+   "espinas",
+   "óbolo",
+   "cruzando",
+   "trigésimacuarta"
+  ],
+  "neg": [],
+  "match": "afligieron OR espinas OR óbolo OR cruzando OR trigésimacuarta",
+  "tsquery": "afligieron | espinas | óbolo | cruzando | trigésimacuarta"
+ },
+ {
+  "qid": "or5_17",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "homenaje",
+   "enfrente",
+   "diana",
+   "adornada",
+   "revolucion"
+  ],
+  "neg": [],
+  "match": "homenaje OR enfrente OR diana OR adornada OR revolucion",
+  "tsquery": "homenaje | enfrente | diana | adornada | revolucion"
+ },
+ {
+  "qid": "or5_18",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "contrabandista",
+   "entrado",
+   "recordaba",
+   "millones",
+   "harto"
+  ],
+  "neg": [],
+  "match": "contrabandista OR entrado OR recordaba OR millones OR harto",
+  "tsquery": "contrabandista | entrado | recordaba | millones | harto"
+ },
+ {
+  "qid": "or5_19",
+  "kind": "or",
+  "k": 5,
+  "words": [
+   "confesó",
+   "hombre",
+   "impresión",
+   "montaña",
+   "salen"
+  ],
+  "neg": [],
+  "match": "confesó OR hombre OR impresión OR montaña OR salen",
+  "tsquery": "confesó | hombre | impresión | montaña | salen"
+ },
+ {
+  "qid": "andnot3_00",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "horrible",
+   "desgraciada"
+  ],
+  "neg": [
+   "iniciativa"
+  ],
+  "match": "horrible AND desgraciada AND NOT iniciativa",
+  "tsquery": "horrible & desgraciada & !iniciativa"
+ },
+ {
+  "qid": "andnot3_01",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "navío",
+   "vive"
+  ],
+  "neg": [
+   "preparado"
+  ],
+  "match": "navío AND vive AND NOT preparado",
+  "tsquery": "navío & vive & !preparado"
+ },
+ {
+  "qid": "andnot3_02",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "importancia",
+   "encuentro"
+  ],
+  "neg": [
+   "vida"
+  ],
+  "match": "importancia AND encuentro AND NOT vida",
+  "tsquery": "importancia & encuentro & !vida"
+ },
+ {
+  "qid": "andnot3_03",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "conviene",
+   "vergonzosa"
+  ],
+  "neg": [
+   "profundas"
+  ],
+  "match": "conviene AND vergonzosa AND NOT profundas",
+  "tsquery": "conviene & vergonzosa & !profundas"
+ },
+ {
+  "qid": "andnot3_04",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "hermoso",
+   "beso"
+  ],
+  "neg": [
+   "cada"
+  ],
+  "match": "hermoso AND beso AND NOT cada",
+  "tsquery": "hermoso & beso & !cada"
+ },
+ {
+  "qid": "andnot3_05",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "siglos",
+   "idea"
+  ],
+  "neg": [
+   "cerdo"
+  ],
+  "match": "siglos AND idea AND NOT cerdo",
+  "tsquery": "siglos & idea & !cerdo"
+ },
+ {
+  "qid": "andnot3_06",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "salía",
+   "mefi"
+  ],
+  "neg": [
+   "quijote"
+  ],
+  "match": "salía AND mefi AND NOT quijote",
+  "tsquery": "salía & mefi & !quijote"
+ },
+ {
+  "qid": "andnot3_07",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "varios",
+   "miedo"
+  ],
+  "neg": [
+   "país"
+  ],
+  "match": "varios AND miedo AND NOT país",
+  "tsquery": "varios & miedo & !país"
+ },
+ {
+  "qid": "andnot3_08",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "roncando",
+   "tendida"
+  ],
+  "neg": [
+   "mensajeros"
+  ],
+  "match": "roncando AND tendida AND NOT mensajeros",
+  "tsquery": "roncando & tendida & !mensajeros"
+ },
+ {
+  "qid": "andnot3_09",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "marineros",
+   "intermitencias"
+  ],
+  "neg": [
+   "jadeando"
+  ],
+  "match": "marineros AND intermitencias AND NOT jadeando",
+  "tsquery": "marineros & intermitencias & !jadeando"
+ },
+ {
+  "qid": "andnot3_10",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "caftor",
+   "tiro"
+  ],
+  "neg": [
+   "ruido"
+  ],
+  "match": "caftor AND tiro AND NOT ruido",
+  "tsquery": "caftor & tiro & !ruido"
+ },
+ {
+  "qid": "andnot3_11",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "aquella",
+   "color"
+  ],
+  "neg": [
+   "quijote"
+  ],
+  "match": "aquella AND color AND NOT quijote",
+  "tsquery": "aquella & color & !quijote"
+ },
+ {
+  "qid": "andnot3_12",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "alegría",
+   "mayor"
+  ],
+  "neg": [
+   "tomando"
+  ],
+  "match": "alegría AND mayor AND NOT tomando",
+  "tsquery": "alegría & mayor & !tomando"
+ },
+ {
+  "qid": "andnot3_13",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "voluntad",
+   "merced"
+  ],
+  "neg": [
+   "estadística"
+  ],
+  "match": "voluntad AND merced AND NOT estadística",
+  "tsquery": "voluntad & merced & !estadística"
+ },
+ {
+  "qid": "andnot3_14",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "voluntad",
+   "buscando"
+  ],
+  "neg": [
+   "cierto"
+  ],
+  "match": "voluntad AND buscando AND NOT cierto",
+  "tsquery": "voluntad & buscando & !cierto"
+ },
+ {
+  "qid": "andnot3_15",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "mudanza",
+   "caballero"
+  ],
+  "neg": [
+   "mayormente"
+  ],
+  "match": "mudanza AND caballero AND NOT mayormente",
+  "tsquery": "mudanza & caballero & !mayormente"
+ },
+ {
+  "qid": "andnot3_16",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "detenido",
+   "probable"
+  ],
+  "neg": [
+   "marqués"
+  ],
+  "match": "detenido AND probable AND NOT marqués",
+  "tsquery": "detenido & probable & !marqués"
+ },
+ {
+  "qid": "andnot3_17",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "entender",
+   "vulgar"
+  ],
+  "neg": [
+   "bien"
+  ],
+  "match": "entender AND vulgar AND NOT bien",
+  "tsquery": "entender & vulgar & !bien"
+ },
+ {
+  "qid": "andnot3_18",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "ruda",
+   "arma"
+  ],
+  "neg": [
+   "muchas"
+  ],
+  "match": "ruda AND arma AND NOT muchas",
+  "tsquery": "ruda & arma & !muchas"
+ },
+ {
+  "qid": "andnot3_19",
+  "kind": "andnot",
+  "k": 3,
+  "words": [
+   "flor",
+   "superficie"
+  ],
+  "neg": [
+   "señor"
+  ],
+  "match": "flor AND superficie AND NOT señor",
+  "tsquery": "flor & superficie & !señor"
+ },
+ {
+  "qid": "andnot5_00",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "tonada",
+   "arreglar",
+   "toda"
+  ],
+  "neg": [
+   "mojan",
+   "viendo"
+  ],
+  "match": "tonada AND arreglar AND toda AND NOT mojan AND NOT viendo",
+  "tsquery": "tonada & arreglar & toda & !mojan & !viendo"
+ },
+ {
+  "qid": "andnot5_01",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "gritaban",
+   "admiración",
+   "talento"
+  ],
+  "neg": [
+   "punto",
+   "hizo"
+  ],
+  "match": "gritaban AND admiración AND talento AND NOT punto AND NOT hizo",
+  "tsquery": "gritaban & admiración & talento & !punto & !hizo"
+ },
+ {
+  "qid": "andnot5_02",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "luego",
+   "reparar",
+   "manera"
+  ],
+  "neg": [
+   "rehacían",
+   "dependientes"
+  ],
+  "match": "luego AND reparar AND manera AND NOT rehacían AND NOT dependientes",
+  "tsquery": "luego & reparar & manera & !rehacían & !dependientes"
+ },
+ {
+  "qid": "andnot5_03",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "salvarla",
+   "hagas",
+   "consumes"
+  ],
+  "neg": [
+   "señor",
+   "situación"
+  ],
+  "match": "salvarla AND hagas AND consumes AND NOT señor AND NOT situación",
+  "tsquery": "salvarla & hagas & consumes & !señor & !situación"
+ },
+ {
+  "qid": "andnot5_04",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "vegetacion",
+   "condiciones",
+   "compuesto"
+  ],
+  "neg": [
+   "david",
+   "cierto"
+  ],
+  "match": "vegetacion AND condiciones AND compuesto AND NOT david AND NOT cierto",
+  "tsquery": "vegetacion & condiciones & compuesto & !david & !cierto"
+ },
+ {
+  "qid": "andnot5_05",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "mismo",
+   "existente",
+   "exageradas"
+  ],
+  "neg": [
+   "junta",
+   "hombres"
+  ],
+  "match": "mismo AND existente AND exageradas AND NOT junta AND NOT hombres",
+  "tsquery": "mismo & existente & exageradas & !junta & !hombres"
+ },
+ {
+  "qid": "andnot5_06",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "cinto",
+   "abierto",
+   "sido"
+  ],
+  "neg": [
+   "noche",
+   "traía"
+  ],
+  "match": "cinto AND abierto AND sido AND NOT noche AND NOT traía",
+  "tsquery": "cinto & abierto & sido & !noche & !traía"
+ },
+ {
+  "qid": "andnot5_07",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "tantas",
+   "serville",
+   "reconocido"
+  ],
+  "neg": [
+   "persecución",
+   "historia"
+  ],
+  "match": "tantas AND serville AND reconocido AND NOT persecución AND NOT historia",
+  "tsquery": "tantas & serville & reconocido & !persecución & !historia"
+ },
+ {
+  "qid": "andnot5_08",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "razón",
+   "informes",
+   "alegré"
+  ],
+  "neg": [
+   "arco",
+   "pies"
+  ],
+  "match": "razón AND informes AND alegré AND NOT arco AND NOT pies",
+  "tsquery": "razón & informes & alegré & !arco & !pies"
+ },
+ {
+  "qid": "andnot5_09",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "labio",
+   "desplegado",
+   "padre"
+  ],
+  "neg": [
+   "derramaría",
+   "soñado"
+  ],
+  "match": "labio AND desplegado AND padre AND NOT derramaría AND NOT soñado",
+  "tsquery": "labio & desplegado & padre & !derramaría & !soñado"
+ },
+ {
+  "qid": "andnot5_10",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "hombre",
+   "sereno",
+   "años"
+  ],
+  "neg": [
+   "abundantes",
+   "irritado"
+  ],
+  "match": "hombre AND sereno AND años AND NOT abundantes AND NOT irritado",
+  "tsquery": "hombre & sereno & años & !abundantes & !irritado"
+ },
+ {
+  "qid": "andnot5_11",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "puedo",
+   "apuntando",
+   "andar"
+  ],
+  "neg": [
+   "modo",
+   "gentilhombre"
+  ],
+  "match": "puedo AND apuntando AND andar AND NOT modo AND NOT gentilhombre",
+  "tsquery": "puedo & apuntando & andar & !modo & !gentilhombre"
+ },
+ {
+  "qid": "andnot5_12",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "ruido",
+   "ardiendo",
+   "pajonales"
+  ],
+  "neg": [
+   "miguel",
+   "lobreguez"
+  ],
+  "match": "ruido AND ardiendo AND pajonales AND NOT miguel AND NOT lobreguez",
+  "tsquery": "ruido & ardiendo & pajonales & !miguel & !lobreguez"
+ },
+ {
+  "qid": "andnot5_13",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "merecen",
+   "historia",
+   "todas"
+  ],
+  "neg": [
+   "civil",
+   "hermosa"
+  ],
+  "match": "merecen AND historia AND todas AND NOT civil AND NOT hermosa",
+  "tsquery": "merecen & historia & todas & !civil & !hermosa"
+ },
+ {
+  "qid": "andnot5_14",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "acarició",
+   "según",
+   "sola"
+  ],
+  "neg": [
+   "sujeto",
+   "andan"
+  ],
+  "match": "acarició AND según AND sola AND NOT sujeto AND NOT andan",
+  "tsquery": "acarició & según & sola & !sujeto & !andan"
+ },
+ {
+  "qid": "andnot5_15",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "pequeña",
+   "perseguido",
+   "indias"
+  ],
+  "neg": [
+   "aplauso",
+   "contestados"
+  ],
+  "match": "pequeña AND perseguido AND indias AND NOT aplauso AND NOT contestados",
+  "tsquery": "pequeña & perseguido & indias & !aplauso & !contestados"
+ },
+ {
+  "qid": "andnot5_16",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "odio",
+   "gerónimo",
+   "desautorizados"
+  ],
+  "neg": [
+   "haber",
+   "palabras"
+  ],
+  "match": "odio AND gerónimo AND desautorizados AND NOT haber AND NOT palabras",
+  "tsquery": "odio & gerónimo & desautorizados & !haber & !palabras"
+ },
+ {
+  "qid": "andnot5_17",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "camino",
+   "preguntándose",
+   "vestidos"
+  ],
+  "neg": [
+   "hijos",
+   "elevacion"
+  ],
+  "match": "camino AND preguntándose AND vestidos AND NOT hijos AND NOT elevacion",
+  "tsquery": "camino & preguntándose & vestidos & !hijos & !elevacion"
+ },
+ {
+  "qid": "andnot5_18",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "impulsadora",
+   "decía",
+   "romántico"
+  ],
+  "neg": [
+   "elásticos",
+   "tronchón"
+  ],
+  "match": "impulsadora AND decía AND romántico AND NOT elásticos AND NOT tronchón",
+  "tsquery": "impulsadora & decía & romántico & !elásticos & !tronchón"
+ },
+ {
+  "qid": "andnot5_19",
+  "kind": "andnot",
+  "k": 5,
+  "words": [
+   "hijos",
+   "jugador",
+   "hecho"
+  ],
+  "neg": [
+   "mercier",
+   "káwit"
+  ],
+  "match": "hijos AND jugador AND hecho AND NOT mercier AND NOT káwit",
+  "tsquery": "hijos & jugador & hecho & !mercier & !káwit"
+ },
+ {
+  "qid": "rank1_00",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "interrumpido"
+  ],
+  "neg": [],
+  "match": "interrumpido",
+  "tsquery": "interrumpido"
+ },
+ {
+  "qid": "rank1_01",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "hablar"
+  ],
+  "neg": [],
+  "match": "hablar",
+  "tsquery": "hablar"
+ },
+ {
+  "qid": "rank1_02",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "peso"
+  ],
+  "neg": [],
+  "match": "peso",
+  "tsquery": "peso"
+ },
+ {
+  "qid": "rank1_03",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "aquella"
+  ],
+  "neg": [],
+  "match": "aquella",
+  "tsquery": "aquella"
+ },
+ {
+  "qid": "rank1_04",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "siga"
+  ],
+  "neg": [],
+  "match": "siga",
+  "tsquery": "siga"
+ },
+ {
+  "qid": "rank1_05",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "animal"
+  ],
+  "neg": [],
+  "match": "animal",
+  "tsquery": "animal"
+ },
+ {
+  "qid": "rank1_06",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "camarines"
+  ],
+  "neg": [],
+  "match": "camarines",
+  "tsquery": "camarines"
+ },
+ {
+  "qid": "rank1_07",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "cacambo"
+  ],
+  "neg": [],
+  "match": "cacambo",
+  "tsquery": "cacambo"
+ },
+ {
+  "qid": "rank1_08",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "aluviones"
+  ],
+  "neg": [],
+  "match": "aluviones",
+  "tsquery": "aluviones"
+ },
+ {
+  "qid": "rank1_09",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "libro"
+  ],
+  "neg": [],
+  "match": "libro",
+  "tsquery": "libro"
+ },
+ {
+  "qid": "rank1_10",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "además"
+  ],
+  "neg": [],
+  "match": "además",
+  "tsquery": "además"
+ },
+ {
+  "qid": "rank1_11",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "parientes"
+  ],
+  "neg": [],
+  "match": "parientes",
+  "tsquery": "parientes"
+ },
+ {
+  "qid": "rank1_12",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "mujer"
+  ],
+  "neg": [],
+  "match": "mujer",
+  "tsquery": "mujer"
+ },
+ {
+  "qid": "rank1_13",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "cierto"
+  ],
+  "neg": [],
+  "match": "cierto",
+  "tsquery": "cierto"
+ },
+ {
+  "qid": "rank1_14",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "bordados"
+  ],
+  "neg": [],
+  "match": "bordados",
+  "tsquery": "bordados"
+ },
+ {
+  "qid": "rank1_15",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "lugares"
+  ],
+  "neg": [],
+  "match": "lugares",
+  "tsquery": "lugares"
+ },
+ {
+  "qid": "rank1_16",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "buenas"
+  ],
+  "neg": [],
+  "match": "buenas",
+  "tsquery": "buenas"
+ },
+ {
+  "qid": "rank1_17",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "apología"
+  ],
+  "neg": [],
+  "match": "apología",
+  "tsquery": "apología"
+ },
+ {
+  "qid": "rank1_18",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "puesto"
+  ],
+  "neg": [],
+  "match": "puesto",
+  "tsquery": "puesto"
+ },
+ {
+  "qid": "rank1_19",
+  "kind": "rank",
+  "k": 1,
+  "words": [
+   "negra"
+  ],
+  "neg": [],
+  "match": "negra",
+  "tsquery": "negra"
+ },
+ {
+  "qid": "rank3_00",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "experimentado",
+   "presentan",
+   "victoria"
+  ],
+  "neg": [],
+  "match": "experimentado presentan victoria",
+  "tsquery": "experimentado | presentan | victoria"
+ },
+ {
+  "qid": "rank3_01",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "dulce",
+   "chalupa",
+   "viento"
+  ],
+  "neg": [],
+  "match": "dulce chalupa viento",
+  "tsquery": "dulce | chalupa | viento"
+ },
+ {
+  "qid": "rank3_02",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "mismo",
+   "ciencias",
+   "entregado"
+  ],
+  "neg": [],
+  "match": "mismo ciencias entregado",
+  "tsquery": "mismo | ciencias | entregado"
+ },
+ {
+  "qid": "rank3_03",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "horno",
+   "harina",
+   "bizcochón"
+  ],
+  "neg": [],
+  "match": "horno harina bizcochón",
+  "tsquery": "horno | harina | bizcochón"
+ },
+ {
+  "qid": "rank3_04",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "solos",
+   "familia",
+   "entra"
+  ],
+  "neg": [],
+  "match": "solos familia entra",
+  "tsquery": "solos | familia | entra"
+ },
+ {
+  "qid": "rank3_05",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "menos",
+   "necesito",
+   "visto"
+  ],
+  "neg": [],
+  "match": "menos necesito visto",
+  "tsquery": "menos | necesito | visto"
+ },
+ {
+  "qid": "rank3_06",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "cometido",
+   "escribir",
+   "atentado"
+  ],
+  "neg": [],
+  "match": "cometido escribir atentado",
+  "tsquery": "cometido | escribir | atentado"
+ },
+ {
+  "qid": "rank3_07",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "puntas",
+   "lúzaro",
+   "separa"
+  ],
+  "neg": [],
+  "match": "puntas lúzaro separa",
+  "tsquery": "puntas | lúzaro | separa"
+ },
+ {
+  "qid": "rank3_08",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "misma",
+   "cosas",
+   "relacion"
+  ],
+  "neg": [],
+  "match": "misma cosas relacion",
+  "tsquery": "misma | cosas | relacion"
+ },
+ {
+  "qid": "rank3_09",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "criados",
+   "acab",
+   "decir"
+  ],
+  "neg": [],
+  "match": "criados acab decir",
+  "tsquery": "criados | acab | decir"
+ },
+ {
+  "qid": "rank3_10",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "moza",
+   "dichoso",
+   "sigamos"
+  ],
+  "neg": [],
+  "match": "moza dichoso sigamos",
+  "tsquery": "moza | dichoso | sigamos"
+ },
+ {
+  "qid": "rank3_11",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "cometido",
+   "hechicero",
+   "encantador"
+  ],
+  "neg": [],
+  "match": "cometido hechicero encantador",
+  "tsquery": "cometido | hechicero | encantador"
+ },
+ {
+  "qid": "rank3_12",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "fraile",
+   "pablo",
+   "poder"
+  ],
+  "neg": [],
+  "match": "fraile pablo poder",
+  "tsquery": "fraile | pablo | poder"
+ },
+ {
+  "qid": "rank3_13",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "hizo",
+   "relacion",
+   "aquel"
+  ],
+  "neg": [],
+  "match": "hizo relacion aquel",
+  "tsquery": "hizo | relacion | aquel"
+ },
+ {
+  "qid": "rank3_14",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "dios",
+   "nabucodonosor",
+   "plata"
+  ],
+  "neg": [],
+  "match": "dios nabucodonosor plata",
+  "tsquery": "dios | nabucodonosor | plata"
+ },
+ {
+  "qid": "rank3_15",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "varias",
+   "nunca",
+   "cuenta"
+  ],
+  "neg": [],
+  "match": "varias nunca cuenta",
+  "tsquery": "varias | nunca | cuenta"
+ },
+ {
+  "qid": "rank3_16",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "cuya",
+   "prisma",
+   "asuntos"
+  ],
+  "neg": [],
+  "match": "cuya prisma asuntos",
+  "tsquery": "cuya | prisma | asuntos"
+ },
+ {
+  "qid": "rank3_17",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "tanata",
+   "borrar",
+   "satisfacerse"
+  ],
+  "neg": [],
+  "match": "tanata borrar satisfacerse",
+  "tsquery": "tanata | borrar | satisfacerse"
+ },
+ {
+  "qid": "rank3_18",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "cuatro",
+   "cubierto",
+   "caballo"
+  ],
+  "neg": [],
+  "match": "cuatro cubierto caballo",
+  "tsquery": "cuatro | cubierto | caballo"
+ },
+ {
+  "qid": "rank3_19",
+  "kind": "rank",
+  "k": 3,
+  "words": [
+   "cubierta",
+   "pieles",
+   "pabellón"
+  ],
+  "neg": [],
+  "match": "cubierta pieles pabellón",
+  "tsquery": "cubierta | pieles | pabellón"
+ },
+ {
+  "qid": "rank5_00",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "arpas",
+   "instrumentos",
+   "levitas",
+   "constituyesen",
+   "alegría"
+  ],
+  "neg": [],
+  "match": "arpas instrumentos levitas constituyesen alegría",
+  "tsquery": "arpas | instrumentos | levitas | constituyesen | alegría"
+ },
+ {
+  "qid": "rank5_01",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "ninguna",
+   "disertacion",
+   "usan",
+   "nadie",
+   "siendo"
+  ],
+  "neg": [],
+  "match": "ninguna disertacion usan nadie siendo",
+  "tsquery": "ninguna | disertacion | usan | nadie | siendo"
+ },
+ {
+  "qid": "rank5_02",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "terrible",
+   "persuasiones",
+   "ventero",
+   "sosiego",
+   "infundió"
+  ],
+  "neg": [],
+  "match": "terrible persuasiones ventero sosiego infundió",
+  "tsquery": "terrible | persuasiones | ventero | sosiego | infundió"
+ },
+ {
+  "qid": "rank5_03",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "yemas",
+   "remojados",
+   "duro",
+   "mortero",
+   "agua"
+  ],
+  "neg": [],
+  "match": "yemas remojados duro mortero agua",
+  "tsquery": "yemas | remojados | duro | mortero | agua"
+ },
+ {
+  "qid": "rank5_04",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "respondió",
+   "dijo",
+   "buen",
+   "aconsejar",
+   "aunque"
+  ],
+  "neg": [],
+  "match": "respondió dijo buen aconsejar aunque",
+  "tsquery": "respondió | dijo | buen | aconsejar | aunque"
+ },
+ {
+  "qid": "rank5_05",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "luego",
+   "cabezas",
+   "deseaba",
+   "guirnaldas",
+   "pastores"
+  ],
+  "neg": [],
+  "match": "luego cabezas deseaba guirnaldas pastores",
+  "tsquery": "luego | cabezas | deseaba | guirnaldas | pastores"
+ },
+ {
+  "qid": "rank5_06",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "conocido",
+   "robáron",
+   "corrido",
+   "rateros",
+   "nadie"
+  ],
+  "neg": [],
+  "match": "conocido robáron corrido rateros nadie",
+  "tsquery": "conocido | robáron | corrido | rateros | nadie"
+ },
+ {
+  "qid": "rank5_07",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "distinguir",
+   "lente",
+   "concavidad",
+   "desenojarla",
+   "colocó"
+  ],
+  "neg": [],
+  "match": "distinguir lente concavidad desenojarla colocó",
+  "tsquery": "distinguir | lente | concavidad | desenojarla | colocó"
+ },
+ {
+  "qid": "rank5_08",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "errores",
+   "gobierna",
+   "ofrece",
+   "distinguir",
+   "caer"
+  ],
+  "neg": [],
+  "match": "errores gobierna ofrece distinguir caer",
+  "tsquery": "errores | gobierna | ofrece | distinguir | caer"
+ },
+ {
+  "qid": "rank5_09",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "ciudad",
+   "cuchillo",
+   "pusieron",
+   "pasaron",
+   "hallado"
+  ],
+  "neg": [],
+  "match": "ciudad cuchillo pusieron pasaron hallado",
+  "tsquery": "ciudad | cuchillo | pusieron | pasaron | hallado"
+ },
+ {
+  "qid": "rank5_10",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "contribuyó",
+   "aquella",
+   "ahogar",
+   "amaru",
+   "lugar"
+  ],
+  "neg": [],
+  "match": "contribuyó aquella ahogar amaru lugar",
+  "tsquery": "contribuyó | aquella | ahogar | amaru | lugar"
+ },
+ {
+  "qid": "rank5_11",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "dijo",
+   "contentamiento",
+   "filisteos",
+   "enemigos",
+   "saúl"
+  ],
+  "neg": [],
+  "match": "dijo contentamiento filisteos enemigos saúl",
+  "tsquery": "dijo | contentamiento | filisteos | enemigos | saúl"
+ },
+ {
+  "qid": "rank5_12",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "preguntó",
+   "nota",
+   "misma",
+   "ejemplos",
+   "cosa"
+  ],
+  "neg": [],
+  "match": "preguntó nota misma ejemplos cosa",
+  "tsquery": "preguntó | nota | misma | ejemplos | cosa"
+ },
+ {
+  "qid": "rank5_13",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "dicho",
+   "aplicacion",
+   "virtud",
+   "franceses",
+   "dios"
+  ],
+  "neg": [],
+  "match": "dicho aplicacion virtud franceses dios",
+  "tsquery": "dicho | aplicacion | virtud | franceses | dios"
+ },
+ {
+  "qid": "rank5_14",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "dirigiéndose",
+   "barcos",
+   "cabeceras",
+   "pueden",
+   "longitud"
+  ],
+  "neg": [],
+  "match": "dirigiéndose barcos cabeceras pueden longitud",
+  "tsquery": "dirigiéndose | barcos | cabeceras | pueden | longitud"
+ },
+ {
+  "qid": "rank5_15",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "reducían",
+   "alguna",
+   "manera",
+   "hacerlo",
+   "avería"
+  ],
+  "neg": [],
+  "match": "reducían alguna manera hacerlo avería",
+  "tsquery": "reducían | alguna | manera | hacerlo | avería"
+ },
+ {
+  "qid": "rank5_16",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "tumupaza",
+   "progreso",
+   "frutos",
+   "animales",
+   "especie"
+  ],
+  "neg": [],
+  "match": "tumupaza progreso frutos animales especie",
+  "tsquery": "tumupaza | progreso | frutos | animales | especie"
+ },
+ {
+  "qid": "rank5_17",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "cierto",
+   "compañero",
+   "verdadero",
+   "realizó",
+   "pierrefonds"
+  ],
+  "neg": [],
+  "match": "cierto compañero verdadero realizó pierrefonds",
+  "tsquery": "cierto | compañero | verdadero | realizó | pierrefonds"
+ },
+ {
+  "qid": "rank5_18",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "secreto",
+   "zarpar",
+   "italia",
+   "preparaban",
+   "amigos"
+  ],
+  "neg": [],
+  "match": "secreto zarpar italia preparaban amigos",
+  "tsquery": "secreto | zarpar | italia | preparaban | amigos"
+ },
+ {
+  "qid": "rank5_19",
+  "kind": "rank",
+  "k": 5,
+  "words": [
+   "capitán",
+   "sacado",
+   "sesbasar",
+   "plata",
+   "nabucodonosor"
+  ],
+  "neg": [],
+  "match": "capitán sacado sesbasar plata nabucodonosor",
+  "tsquery": "capitán | sacado | sesbasar | plata | nabucodonosor"
+ }
+]

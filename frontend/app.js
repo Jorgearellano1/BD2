@@ -11,7 +11,7 @@ function escapeHtml(text) {
 
 function highlightSql() {
   const source = editor.value;
-  const tokens = /'(?:''|[^'])*'|\b(?:SELECT|FROM|WHERE|AND|OR|NOT|CREATE|TABLE|INDEX|INSERT|INTO|VALUES|DELETE|USING|HEAP|SEQUENTIAL|BTREE|HASH|ON|INT|FLOAT|CHAR|PRIMARY|KEY|UNIQUE|CSV|DELIMITER|FORCE)\b|\b\d+(?:\.\d+)?\b/gi;
+  const tokens = /'(?:''|[^'])*'|\b(?:SELECT|FROM|WHERE|AND|OR|NOT|CREATE|TABLE|INDEX|INSERT|INTO|VALUES|DELETE|USING|HEAP|SEQUENTIAL|BTREE|HASH|ON|INT|FLOAT|CHAR|PRIMARY|KEY|UNIQUE|CSV|DELIMITER|FORCE|INVERTED|WITH|MATCH|ORDER|BY|LIMIT|ASC|DESC|AS|COSINE_SCORE)\b|\b\d+(?:\.\d+)?\b/gi;
   let result = '';
   let position = 0;
   for (const match of source.matchAll(tokens)) {
@@ -131,7 +131,9 @@ async function loadTables() {
 function renderExplain(node) {
   const lines = [];
   function visit(item, depth) {
-    lines.push(`${'  '.repeat(depth)}${item.node_type.replace(/Plan$/, '')}`);
+    const detail = item.detail ? ` [${item.detail}]` : '';
+    const io = typeof item.pages_read === 'number' ? `  (lecturas ${format.format(item.pages_read)}, escrituras ${format.format(item.pages_written ?? 0)})` : '';
+    lines.push(`${'  '.repeat(depth)}${item.node_type.replace(/Plan$/, '')}${detail}${io}`);
     for (const child of item.children) visit(child, depth + 1);
   }
   if (node) visit(node, 0);
@@ -183,7 +185,10 @@ function renderResult(data) {
   byId('page-info').textContent = data.total_rows ? `Página ${format.format(data.page)} de ${format.format(data.total_pages)}` : 'Sin filas';
   byId('plan').textContent = data.plan;
   renderExplain(data.explain);
+  const io = data.io_breakdown;
   byId('plan-detail').textContent = [data.table, data.index ? `Índice: ${data.index}` : null,
+    data.strategy ? `Estrategia: ${data.strategy}` : null,
+    io && (io.index_reads || io.table_reads) ? `Lecturas en índice: ${format.format(io.index_reads)} · en tabla: ${format.format(io.table_reads)}` : null,
     data.statements > 1 ? `Último plan · métricas de ${data.statements} sentencias` : null].filter(Boolean).join(' · ');
   const metrics = data.metrics;
   byId('reads').textContent = format.format(metrics.disk_reads);

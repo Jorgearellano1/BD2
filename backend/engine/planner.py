@@ -17,6 +17,7 @@ from parser.ast import (
     UnaryExp,
     LiteralExp,
     IdExp,
+    MatchExp,
     ColumnDef,
     StorageType,
     IndexType,
@@ -66,6 +67,12 @@ from engine.plan import (
     FilterRidsPlan,
     EmptyResultPlan,
     ProjectPlan,
+    TextIndexScanPlan,
+    TextFetchPlan,
+    FullTextScanPlan,
+    SortPlan,
+    LimitPlan,
+    TextProjectPlan,
 )
 
 
@@ -162,8 +169,7 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
         if isinstance(statement, AlterStm):
             return StatementInfo(statement_id, "ALTER_TABLE", statement.table, None)
         if isinstance(statement, SelectStm):
-            columns = list(statement.columns) if statement.columns is not None else None
-            return StatementInfo(statement_id, "SELECT", statement.table, columns)
+            return StatementInfo(statement_id, "SELECT", statement.table, statement.output_columns())
         if isinstance(statement, DeleteStm):
             return StatementInfo(statement_id, "DELETE", statement.table, None)
         return StatementInfo(statement_id, "UNKNOWN", None, None)
@@ -190,11 +196,17 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
         )
 
     def visit_create_index(self, node: CreateIndexStm) -> PlanNode:
+        kind = self._index_kind(node.index_type)
+        options = None
+        if kind is IndexKind.INVERTED:
+            from textindex.options import normalize_text_options
+            options = normalize_text_options(node.options)
         return CreateIndexPlan(
             name=node.name,
             table=node.table,
             column=node.column,
-            index_kind=self._index_kind(node.index_type),
+            index_kind=kind,
+            options=options,
         )
 
     def visit_insert(self, node: InsertStm) -> PlanNode:
@@ -211,6 +223,9 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
         return AddUniquePlan(table=node.table, column=node.column,)
 
     def visit_select(self, node: SelectStm) -> PlanNode:
+        if node.where is not None and self._find_match(node.where) is not None:
+            return self._build_text_select(node)
+
         expression = (node.where.accept(self) if node.where is not None else None)
 
         if self._is_sequential_table(node.table):
@@ -237,9 +252,178 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
         if access.residual is not None:
             plan = FilterPlan(predicate=access.residual, child=plan,)
 
+        if node.order_by is not None:
+            plan = SortPlan(column=node.order_by, descending=node.order_desc, child=plan)
+
+        if node.limit is not None:
+            plan = LimitPlan(limit=node.limit, child=plan)
+
         if node.columns is not None:
             plan = ProjectPlan(columns=node.columns, child=plan,)
 
+        return plan
+
+    # ------------------------------------------------------------------
+    # SELECT con MATCH (modulo textual)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _find_match(expression) -> MatchExp | None:
+        if isinstance(expression, MatchExp):
+            return expression
+        if isinstance(expression, BinaryExp):
+            return (PlannerVisitor._find_match(expression.left)
+                    or PlannerVisitor._find_match(expression.right))
+        if isinstance(expression, UnaryExp):
+            return PlannerVisitor._find_match(expression.value)
+        return None
+
+    @staticmethod
+    def _split_match(expression) -> tuple[MatchExp, list]:
+        """Separa el MATCH de los demas conjuntos del AND de primer nivel."""
+        conjuncts: list = []
+
+        def flatten(node) -> None:
+            if isinstance(node, BinaryExp) and node.op is BinaryOp.AND:
+                flatten(node.left)
+                flatten(node.right)
+            else:
+                conjuncts.append(node)
+
+        flatten(expression)
+        match = next((item for item in conjuncts if isinstance(item, MatchExp)), None)
+        if match is None:
+            raise PlannerError("MATCH solo puede combinarse con AND en el WHERE")
+        rest = [item for item in conjuncts if item is not match]
+        if any(PlannerVisitor._find_match(item) is not None for item in rest):
+            raise PlannerError("Solo se admite un MATCH por consulta")
+        return match, rest
+
+    def _text_index_for(self, node: SelectStm, column: str):
+        """Indice INVERTED a usar (o None para Full Text Scan) segun FORCE."""
+        index = self.catalog.find_index(node.table, column, IndexKind.INVERTED)
+        if node.force_seqscan:
+            return None
+        if node.force_indexes is not None:
+            for name in node.force_indexes:
+                forced = self.catalog.get_index(name)
+                if forced.kind is IndexKind.INVERTED and (index is None or forced.name != index.name):
+                    raise PlannerError(
+                        f"El indice '{name}' no corresponde a la columna '{column}' del MATCH"
+                    )
+            if index is not None and index.name in node.force_indexes:
+                return index
+            return None
+        if node.force_all_indexes and index is None:
+            raise PlannerError(
+                f"FORCE INDEX(*): no existe indice INVERTED sobre '{node.table}({column})'"
+            )
+        return index
+
+    def _build_text_select(self, node: SelectStm) -> PlanNode:
+        match, rest = self._split_match(node.where)
+
+        relational: Expression | None = None
+        if rest:
+            ast = rest[0]
+            for item in rest[1:]:
+                ast = BinaryExp(ast, item, BinaryOp.AND)
+            relational = self._as_expression(ast.accept(self))
+            constant = self._constant_boolean(relational)
+            if constant is True:
+                relational = None
+            elif constant is False:
+                plan: PlanNode = EmptyResultPlan()
+                return self._text_output(node, plan)
+
+        score_order = node.order_by is not None and node.order_by == node.score_alias
+        rank = node.score_alias is not None or score_order
+        column_order = node.order_by if node.order_by is not None and not score_order else None
+        descending = node.order_desc if score_order else True
+        # El LIMIT se empuja al Top-K del indice solo si el orden final es el
+        # del score (o el orden por doc_id del modo booleano).
+        top_k = node.limit if column_order is None else None
+
+        index = None if self._is_sequential_table(node.table) else self._text_index_for(node, match.column)
+
+        if index is None:
+            existing = self.catalog.find_index(node.table, match.column, IndexKind.INVERTED)
+            from textindex.options import normalize_text_options
+            options = normalize_text_options(
+                {k: v for k, v in (existing.options or {}).items() if k != 'block_postings'}
+                if existing is not None else None
+            )
+            plan = FullTextScanPlan(
+                table=node.table,
+                column=match.column,
+                query=match.query,
+                options=options,
+                rank=rank,
+                top_k=top_k,
+                descending=descending,
+                residual=relational,
+            )
+        else:
+            prefilter = None
+            post = relational
+            strategy = 'INDEX_ONLY'
+            if relational is not None:
+                strategy = 'POST_FILTER'
+                relational_force = None
+                if node.force_indexes is not None:
+                    relational_force = [
+                        name for name in node.force_indexes
+                        if self.catalog.get_index(name).kind is not IndexKind.INVERTED
+                    ]
+                if relational_force != []:
+                    access = self._build_access(
+                        table=node.table,
+                        expression=relational,
+                        force_indexes=relational_force or None,
+                        force_seqscan=False,
+                        force_all_indexes=False,
+                        produce_rids=True,
+                    )
+                    if access.used_indexes:
+                        prefilter = access.plan
+                        post = access.residual
+                        strategy = 'PRE_FILTER'
+            scan = TextIndexScanPlan(
+                table=node.table,
+                index=index.name,
+                column=match.column,
+                query=match.query,
+                rank=rank,
+                top_k=top_k if post is None else None,
+                descending=descending,
+                strategy=strategy,
+                prefilter=prefilter,
+            )
+            plan = TextFetchPlan(
+                table=node.table,
+                child=scan,
+                residual=post,
+                limit=top_k if post is not None else None,
+            )
+
+        if column_order is not None:
+            plan = SortPlan(column=column_order, descending=node.order_desc, child=plan)
+            if node.limit is not None:
+                plan = LimitPlan(limit=node.limit, child=plan)
+
+        return self._text_output(node, plan)
+
+    @staticmethod
+    def _text_output(node: SelectStm, plan: PlanNode) -> PlanNode:
+        if node.score_alias is not None:
+            return TextProjectPlan(
+                columns=list(node.columns or []),
+                score_alias=node.score_alias,
+                score_position=node.score_position or 0,
+                child=plan,
+            )
+        if node.columns is not None:
+            return ProjectPlan(columns=node.columns, child=plan)
         return plan
 
     def visit_delete(self, node: DeleteStm) -> PlanNode:
@@ -1763,6 +1947,9 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
     def _index_kind(index_type: IndexType) -> IndexKind:
         if index_type is IndexType.HASH:
             return IndexKind.HASH
+
+        if index_type is IndexType.INVERTED:
+            return IndexKind.INVERTED
 
         return IndexKind.BTREE
 
