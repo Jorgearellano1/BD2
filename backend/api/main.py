@@ -56,6 +56,11 @@ def result_page(result_id: str, page: int = Query(default=1, ge=1)) -> schemas.Q
     return schemas.QueryResponse(**service.result_page(result_id, page))
 
 
+@app.get('/api/results/{result_id}/map')
+def result_map(result_id: str, limit: int = Query(default=2000, ge=1, le=5000)) -> dict:
+    return service.result_map(result_id, limit)
+
+
 @app.post('/api/tables/reorganize')
 def reorganize(request: schemas.ReorganizeRequest) -> schemas.QueryResponse:
     return schemas.QueryResponse(**service.reorganize(request.table))

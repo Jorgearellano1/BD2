@@ -130,6 +130,8 @@ Endpoints:
 - `POST /api/query` -> `{"sql": "..."}`; responde por sentencia con `success`,
   `columns`, `rows`, `affected_rows`, `message`, `error` y `explain` (métricas).
   `explains` incluye el plan y las métricas de todas las sentencias del script.
+- `GET /api/results/{result_id}/map` -> puntos de todo el resultado para el mapa
+  (hasta 2000, con `truncated`) y los metadatos espaciales de la consulta.
 
 `POST /api/query` acepta un script completo (varias sentencias) y devuelve la
 misma estructura que la `Session`: ante un fallo incluye `success=false`,
@@ -168,7 +170,9 @@ WHERE KNN(latitud, longitud, 35.6144, -88.5195, 5);
 
 `KNN` usa `nearest_neighbors` del R-Tree y requiere un índice sobre las dos
 columnas indicadas. El cliente web dibuja los resultados en el mapa cuando la
-consulta usa R-Tree y el `SELECT` incluye latitud y longitud.
+consulta usa R-Tree y el `SELECT` incluye latitud y longitud. El mapa SQL pide
+todos los puntos del resultado (hasta 2000) y dibuja el radio, el rectángulo o
+el centro de la consulta. El recomendador mantiene el Top-K.
 
 ## Búsqueda vectorial
 

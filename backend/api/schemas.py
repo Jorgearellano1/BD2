@@ -133,3 +133,4 @@ class QueryResponse(BaseModel):
     page: int = 1
     total_pages: int = 1
     total_rows: int = 0
+    spatial: dict | None = None

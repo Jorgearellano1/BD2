@@ -6,16 +6,53 @@ from uuid import uuid4
 from collections import OrderedDict
 
 from fastapi import HTTPException
-from engine.metadata import StorageKind
+from engine.metadata import IndexKind, StorageKind
 from storage.heapFile import HeapFile
 from storage.sequentialFile import SequentialFile
 
 from engine.catalog import Catalog
 from engine.session import Session
+from parser.ast import (
+    BinaryExp,
+    BinaryOp,
+    IdExp,
+    KnnExp,
+    LiteralExp,
+    SelectStm,
+    UnaryExp,
+    WithinRadiusExp,
+)
 from parser.parser import Parser
 from parser.scanner import Scanner
 
 from api import serializers
+
+
+def _geo_indices(columns: list[str]) -> tuple[int, int] | None:
+    names = [str(column).lower() for column in columns]
+    latitude = next(
+        (index for index, name in enumerate(names) if name in {'latitud', 'latitude', 'lat'}),
+        None,
+    )
+    longitude = next(
+        (index for index, name in enumerate(names) if name in {'longitud', 'longitude', 'lon', 'lng'}),
+        None,
+    )
+    return (latitude, longitude) if latitude is not None and longitude is not None else None
+
+
+def _label_index(columns: list[str], rows: list[list], geo: tuple[int, int]) -> int | None:
+    skip = set(geo)
+    for index in range(1, len(columns)):
+        if index in skip:
+            continue
+        if any(
+            isinstance(row[index], str) and row[index].strip()
+            for row in rows[:20]
+            if len(row) > index
+        ):
+            return index
+    return None
 
 
 class DatabaseService:
@@ -58,6 +95,7 @@ class DatabaseService:
             payload = serializers.frontend_output(
                 output, program, (parsed - start) * 1000, (perf_counter() - parsed) * 1000,
             )
+            payload['spatial'] = self._spatial_metadata(program)
             return self._remember(payload, page_size)
 
     def _remember(self, payload: dict, page_size: int) -> dict:
@@ -83,6 +121,201 @@ class DatabaseService:
     def result_page(self, result_id: str, page: int) -> dict:
         with self._lock:
             return self._page(result_id, page)
+
+    def result_map(self, result_id: str, limit: int = 2000) -> dict:
+        with self._lock:
+            if result_id not in self._results:
+                raise HTTPException(
+                    404,
+                    'El resultado expiró. Ejecuta nuevamente la consulta.',
+                )
+
+            payload, _ = self._results[result_id]
+            columns = list(payload.get('columns') or [])
+            rows = payload.get('rows') or []
+            geo = _geo_indices(columns)
+
+            if geo is None:
+                return {
+                    'points': [],
+                    'shown': 0,
+                    'total': len(rows),
+                    'truncated': False,
+                    'columns': columns,
+                    'spatial': payload.get('spatial'),
+                }
+
+            latitude_index, longitude_index = geo
+            label_index = _label_index(columns, rows, geo)
+            points = []
+            total = 0
+
+            for row in rows:
+                try:
+                    latitude = float(row[latitude_index])
+                    longitude = float(row[longitude_index])
+                except (IndexError, TypeError, ValueError):
+                    continue
+
+                total += 1
+                if len(points) >= limit:
+                    continue
+
+                label = ''
+                if label_index is not None and row[label_index] is not None:
+                    label = str(row[label_index])[:80]
+
+                points.append([latitude, longitude, label])
+
+            return {
+                'points': points,
+                'shown': len(points),
+                'total': total,
+                'truncated': total > len(points),
+                'columns': columns,
+                'lat_column': columns[latitude_index],
+                'lon_column': columns[longitude_index],
+                'spatial': payload.get('spatial'),
+            }
+
+    def _spatial_metadata(self, program) -> dict | None:
+        statement = next(
+            (
+                item
+                for item in reversed(program.statements)
+                if isinstance(item, SelectStm)
+            ),
+            None,
+        )
+
+        if statement is None or statement.where is None:
+            return None
+
+        radius = self._find_ast(statement.where, WithinRadiusExp)
+        if radius is not None:
+            return {
+                'kind': 'radius',
+                'center': {
+                    'lat': radius.center_lat,
+                    'lon': radius.center_lon,
+                },
+                'radius_km': radius.radius_km,
+                'latitude': radius.latitude,
+                'longitude': radius.longitude,
+            }
+
+        knn = self._find_ast(statement.where, KnnExp)
+        if knn is not None:
+            return {
+                'kind': 'knn',
+                'center': {
+                    'lat': knn.center_lat,
+                    'lon': knn.center_lon,
+                },
+                'k': knn.k,
+                'latitude': knn.latitude,
+                'longitude': knn.longitude,
+            }
+
+        index = next(
+            (
+                item
+                for item in self.catalog.get_table_indexes(statement.table)
+                if item.kind is IndexKind.RTREE and item.spatial_columns
+            ),
+            None,
+        )
+        if index is None or index.spatial_columns is None:
+            return None
+
+        latitude_column, longitude_column = index.spatial_columns
+        bounds = {
+            latitude_column: [None, None],
+            longitude_column: [None, None],
+        }
+        self._collect_bounds(statement.where, bounds)
+
+        latitude_bounds = bounds[latitude_column]
+        longitude_bounds = bounds[longitude_column]
+
+        if (
+            latitude_bounds[0] is None
+            or latitude_bounds[1] is None
+            or longitude_bounds[0] is None
+            or longitude_bounds[1] is None
+        ):
+            return None
+
+        return {
+            'kind': 'rect',
+            'bbox': {
+                'lat_min': latitude_bounds[0],
+                'lat_max': latitude_bounds[1],
+                'lon_min': longitude_bounds[0],
+                'lon_max': longitude_bounds[1],
+            },
+            'latitude': latitude_column,
+            'longitude': longitude_column,
+        }
+
+    @staticmethod
+    def _find_ast(node, target):
+        if isinstance(node, target):
+            return node
+
+        if isinstance(node, BinaryExp):
+            return (
+                DatabaseService._find_ast(node.left, target)
+                or DatabaseService._find_ast(node.right, target)
+            )
+
+        if isinstance(node, UnaryExp):
+            return DatabaseService._find_ast(node.value, target)
+
+        return None
+
+    @staticmethod
+    def _collect_bounds(node, bounds: dict[str, list[float | None]]) -> None:
+        if isinstance(node, BinaryExp) and node.op is BinaryOp.AND:
+            DatabaseService._collect_bounds(node.left, bounds)
+            DatabaseService._collect_bounds(node.right, bounds)
+            return
+
+        if not isinstance(node, BinaryExp):
+            return
+
+        left = node.left
+        right = node.right
+        operator = node.op
+
+        if isinstance(right, IdExp) and isinstance(left, LiteralExp):
+            left, right = right, left
+            operator = {
+                BinaryOp.GT: BinaryOp.LT,
+                BinaryOp.GE: BinaryOp.LE,
+                BinaryOp.LT: BinaryOp.GT,
+                BinaryOp.LE: BinaryOp.GE,
+            }.get(operator, operator)
+
+        if not isinstance(left, IdExp) or not isinstance(right, LiteralExp):
+            return
+
+        if left.value not in bounds:
+            return
+
+        value = right.value
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return
+
+        value = float(value)
+
+        if operator in (BinaryOp.GT, BinaryOp.GE, BinaryOp.EQ):
+            current = bounds[left.value][0]
+            bounds[left.value][0] = value if current is None else max(current, value)
+
+        if operator in (BinaryOp.LT, BinaryOp.LE, BinaryOp.EQ):
+            current = bounds[left.value][1]
+            bounds[left.value][1] = value if current is None else min(current, value)
 
     def _storage(self, entry):
         kind = SequentialFile if entry.storage is StorageKind.SEQUENTIAL else HeapFile

@@ -7,7 +7,11 @@ const editor = byId('sql');
 const highlight = byId('highlight');
 let sqlMap = null;
 let sqlMapLayer = null;
+let sqlMapArea = null;
 let sqlMapPoints = [];
+let sqlMapFitPoints = [];
+let sqlMapRequest = 0;
+let sqlMapLoadedId = null;
 const EXAMPLES = [
   ['P1 · Rango por clave', 'SELECT * FROM estudiantes\nWHERE Student_ID >= 100 AND Student_ID <= 150;'],
   ['P2 · Espacial: crear tabla y R-Tree', "CREATE TABLE cities (\n  id INT PRIMARY KEY, name CHAR(100), state_id INT, state_code CHAR(10),\n  state_name CHAR(100), country_id INT, country_code CHAR(10), country_name CHAR(100),\n  latitude FLOAT, longitude FLOAT, wikiDataId CHAR(30)\n) USING HEAP FROM CSV ('data/datasets/cities.csv');\nCREATE INDEX idx_cities_spatial ON cities (latitude, longitude) USING RTREE;"],
@@ -245,62 +249,45 @@ function ensureSqlMap() {
     attribution: '&copy; OpenStreetMap contributors',
   }).addTo(sqlMap);
   sqlMapLayer = L.layerGroup().addTo(sqlMap);
+  sqlMapArea = L.layerGroup().addTo(sqlMap);
   return sqlMap;
 }
 
-function sqlPopup(columns, row, geo) {
+function sqlPointPopup(label, latitude, longitude) {
   const box = document.createElement('div');
   box.className = 'map-popup';
-  const skip = new Set([geo.latIndex, geo.lonIndex]);
-  const titleIndex = columns.findIndex((name, index) => (
-    index > 0 && !skip.has(index) && typeof row[index] === 'string' && row[index].trim()
-  ));
-  const fallback = columns.findIndex((name, index) => (
-    !skip.has(index) && typeof row[index] === 'string' && row[index].trim()
-  ));
-  const heading = titleIndex >= 0 ? titleIndex : fallback;
-
   const title = document.createElement('strong');
-  title.textContent = heading >= 0
-    ? String(row[heading]).slice(0, 90)
-    : `Registro ${row[0] ?? ''}`;
-  box.append(title);
-
-  let lines = 0;
-  for (let index = 0; index < columns.length && lines < 6; index += 1) {
-    if (skip.has(index) || index === heading) continue;
-    const value = row[index];
-    if (value == null || value === '') continue;
-    const line = document.createElement('div');
-    line.className = 'map-meta';
-    line.textContent = `${columns[index]}: ${String(value).slice(0, 80)}`;
-    box.append(line);
-    lines += 1;
-  }
-
+  title.textContent = label || 'Registro';
+  const coords = document.createElement('div');
+  coords.className = 'map-meta';
+  coords.textContent = `${decimal.format(latitude)}, ${decimal.format(longitude)}`;
+  box.append(title, coords);
   return box;
 }
 
 function fitSqlMap() {
   if (!sqlMap) return;
 
-  if (sqlMapPoints.length) {
-    sqlMap.fitBounds(L.latLngBounds(sqlMapPoints).pad(0.15), { maxZoom: 12 });
+  if (sqlMapFitPoints.length) {
+    sqlMap.fitBounds(L.latLngBounds(sqlMapFitPoints).pad(0.15), { maxZoom: 12 });
   } else {
     sqlMap.setView([0, 0], 2);
   }
 }
 
-function renderSqlMap(data, geo, rtree) {
+function renderSqlMap(payload, rtree) {
   const map = ensureSqlMap();
   if (!map) return;
 
   sqlMapLayer.clearLayers();
+  sqlMapArea.clearLayers();
   sqlMapPoints = [];
+  sqlMapFitPoints = [];
 
-  for (const row of data.rows) {
-    const lat = Number(row[geo.latIndex]);
-    const lon = Number(row[geo.lonIndex]);
+  for (const point of payload.points || []) {
+    const [latitude, longitude, label] = point;
+    const lat = Number(latitude);
+    const lon = Number(longitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
 
     L.circleMarker([lat, lon], {
@@ -309,12 +296,69 @@ function renderSqlMap(data, geo, rtree) {
       weight: 2,
       fillColor: '#2563eb',
       fillOpacity: 0.75,
-    }).bindPopup(sqlPopup(data.columns, row, geo)).addTo(sqlMapLayer);
+    }).bindPopup(sqlPointPopup(label, lat, lon)).addTo(sqlMapLayer);
     sqlMapPoints.push([lat, lon]);
+    sqlMapFitPoints.push([lat, lon]);
   }
 
-  const count = sqlMapPoints.length;
-  byId('sql-map-hint').textContent = `${rtree ? 'R-Tree' : 'Resultados'} · ${format.format(count)} punto${count === 1 ? '' : 's'}`;
+  const spatial = payload.spatial;
+
+  if (spatial?.kind === 'radius' && spatial.center) {
+    const center = [Number(spatial.center.lat), Number(spatial.center.lon)];
+    L.circleMarker(center, {
+      radius: 8,
+      color: '#111827',
+      weight: 2,
+      fillColor: '#111827',
+      fillOpacity: 1,
+    }).bindPopup('Punto de consulta').addTo(sqlMapArea);
+
+    const circle = L.circle(center, {
+      radius: Number(spatial.radius_km) * 1000,
+      color: '#111827',
+      weight: 1,
+      fill: false,
+      dashArray: '6 4',
+    }).addTo(sqlMapArea);
+
+    sqlMapFitPoints.push(
+      center,
+      circle.getBounds().getSouthWest(),
+      circle.getBounds().getNorthEast(),
+    );
+  } else if (spatial?.kind === 'rect' && spatial.bbox) {
+    const bbox = spatial.bbox;
+    L.rectangle(
+      [[bbox.lat_min, bbox.lon_min], [bbox.lat_max, bbox.lon_max]],
+      {
+        color: '#6b7280',
+        weight: 1,
+        fill: false,
+        dashArray: '4 3',
+      },
+    ).addTo(sqlMapArea);
+    sqlMapFitPoints.push(
+      [bbox.lat_min, bbox.lon_min],
+      [bbox.lat_max, bbox.lon_max],
+    );
+  } else if (spatial?.kind === 'knn' && spatial.center) {
+    const center = [Number(spatial.center.lat), Number(spatial.center.lon)];
+    L.circleMarker(center, {
+      radius: 8,
+      color: '#7c3aed',
+      weight: 2,
+      fillColor: '#7c3aed',
+      fillOpacity: 1,
+    }).bindPopup(`KNN k=${spatial.k ?? ''}`).addTo(sqlMapArea);
+    sqlMapFitPoints.push(center);
+  }
+
+  const prefix = rtree ? 'R-Tree' : 'Resultados';
+  const shown = Number(payload.shown ?? (payload.points || []).length);
+  const total = Number(payload.total ?? shown);
+  byId('sql-map-hint').textContent = payload.truncated
+    ? `${prefix} · mostrando ${format.format(shown)} de ${format.format(total)} puntos`
+    : `${prefix} · ${format.format(shown)} punto${shown === 1 ? '' : 's'}`;
 
   if (!byId('map-view').hidden) {
     setTimeout(() => {
@@ -324,9 +368,55 @@ function renderSqlMap(data, geo, rtree) {
   }
 }
 
+async function loadSqlMap(data, geo, rtree) {
+  if (!data.result_id) {
+    renderSqlMapFallback(data, geo, rtree);
+    return;
+  }
+
+  if (sqlMapLoadedId === data.result_id) return;
+
+  const requestId = ++sqlMapRequest;
+  byId('sql-map-hint').textContent = 'Cargando mapa…';
+
+  try {
+    const payload = await request(`/api/results/${data.result_id}/map?limit=2000`);
+    if (requestId !== sqlMapRequest) return;
+    sqlMapLoadedId = data.result_id;
+    renderSqlMap(payload, rtree);
+  } catch (error) {
+    if (requestId !== sqlMapRequest) return;
+    renderSqlMapFallback(data, geo, rtree);
+  }
+}
+
+function renderSqlMapFallback(data, geo, rtree) {
+  const points = [];
+
+  for (const row of data.rows || []) {
+    const lat = Number(row[geo.latIndex]);
+    const lon = Number(row[geo.lonIndex]);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      points.push([lat, lon, '']);
+    }
+  }
+
+  renderSqlMap({
+    points,
+    shown: points.length,
+    total: data.total_rows || points.length,
+    truncated: (data.total_rows || points.length) > points.length,
+    spatial: data.spatial || null,
+  }, rtree);
+}
+
 function clearSqlMap() {
+  sqlMapRequest += 1;
+  sqlMapLoadedId = null;
   sqlMapPoints = [];
+  sqlMapFitPoints = [];
   if (sqlMapLayer) sqlMapLayer.clearLayers();
+  if (sqlMapArea) sqlMapArea.clearLayers();
   byId('sql-map-hint').textContent = '';
 }
 
@@ -394,7 +484,7 @@ function renderResult(data, options = {}) {
   }
 
   if (canMap) {
-    renderSqlMap(data, geo, rtree);
+    loadSqlMap(data, geo, rtree);
 
     if (options.autoMap && rtree) {
       selectResultTab('map');
