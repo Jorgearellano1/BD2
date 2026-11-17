@@ -150,7 +150,10 @@ escribe tambien `bovw_codebook.json` y `bovw_manifest.json`. El frontend usa
 Dataset real de Craigslist (Kaggle, CC0): 426k vehiculos con imagen, titulo,
 descripcion, precio, categoria y latitud/longitud. Se usa un subconjunto de
 12,000 con imagenes de 256x192. El dataset procesado y los pesos ya estan en
-el repo (`data/datasets/cars/` y `data/models/resnet18.pth`).
+el repo (`data/datasets/cars/` y `data/models/resnet18.pth`). El frontend
+incluye un mapa Leaflet local con el punto de consulta, radio, MBR y los
+resultados de BoVW, embeddings o texto. Los tiles de OpenStreetMap requieren
+internet; Leaflet se sirve desde `frontend/vendor/leaflet/`.
 
 ### Puesta en marcha (dataset incluido)
 

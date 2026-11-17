@@ -179,7 +179,11 @@ La pestaña **Recomendador** del cliente web usa un dataset real de Craigslist
 (12,000 vehículos, licencia CC0) con imagen, título, descripción, precio,
 categoría y ubicación. Permite subir una foto o escribir una descripción,
 filtrar por precio y cercanía de tienda, elegir el Top-K y compara BoVW
-(SIFT + índice invertido) con embeddings densos (ResNet-18 + IVF).
+(SIFT + índice invertido) con embeddings densos (ResNet-18 + IVF). Incluye un
+mapa interactivo (Leaflet local + OpenStreetMap) con el punto de consulta, el
+radio, el MBR y los resultados de cada método. Leaflet 1.9.4 se sirve desde
+`frontend/vendor/leaflet/` (BSD-2-Clause); los tiles de OpenStreetMap requieren
+internet.
 
 El dataset procesado y los pesos ya están en el repositorio
 (`data/datasets/cars/` y `data/models/resnet18.pth`).

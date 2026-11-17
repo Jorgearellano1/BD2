@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import math
 import os
 import shutil
 import sys
@@ -287,6 +288,18 @@ CREATE INDEX idx_veh_vec ON vehiculos(embedding) USING IVF WITH (lists = 2, metr
                 'Red sports car with low mileage and manual transmission',
             )
             self.assertEqual(data['limit'], 5)
+            self.assertEqual(
+                data['map']['center'], {'lat': 37.77, 'lon': -122.42},
+            )
+            self.assertAlmostEqual(data['map']['radius_km'], 100.0)
+            self.assertAlmostEqual(
+                data['map']['bbox']['lat_min'], 37.77 - 100 / 111, places=6,
+            )
+            self.assertAlmostEqual(
+                data['map']['bbox']['lon_max'],
+                -122.42 + 100 / (111 * math.cos(math.radians(37.77))),
+                places=6,
+            )
 
             response = client.get('/api/recommend/samples?limit=3')
             self.assertEqual(response.status_code, 200, response.text)

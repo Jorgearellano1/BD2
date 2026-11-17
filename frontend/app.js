@@ -430,6 +430,8 @@ window.addEventListener('resize', () => {
 // Recomendador multimodal
 let recImageData = null;
 let recBusy = false;
+let recMap = null;
+let recMapLayers = null;
 
 function selectMainView(name) {
   for (const view of ['sql', 'recommend']) {
@@ -439,6 +441,9 @@ function selectMainView(name) {
     byId(`${view}-view`).hidden = !active;
   }
   history.replaceState(null, '', name === 'recommend' ? '#recomendador' : '#cliente-sql');
+  if (name === 'recommend' && recMap) {
+    setTimeout(() => recMap.invalidateSize(), 0);
+  }
 }
 
 for (const name of ['sql', 'recommend']) {
@@ -502,6 +507,10 @@ function clearRecommendation() {
   byId('rec-bovw-panel').hidden = false;
   byId('rec-emb-panel').hidden = false;
   byId('rec-text-panel').hidden = true;
+  byId('rec-map-panel').hidden = true;
+  if (recMapLayers) {
+    for (const layer of Object.values(recMapLayers)) layer.clearLayers();
+  }
   syncLocationControls();
 }
 
@@ -581,6 +590,163 @@ function querySummary(data, payload, cityLabel) {
   return parts.join(' | ');
 }
 
+function ensureRecommendationMap() {
+  if (recMap) return recMap;
+  if (typeof L === 'undefined') return null;
+
+  recMap = L.map('rec-map', { zoomControl: true }).setView([0, 0], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(recMap);
+
+  recMapLayers = {
+    bovw: L.layerGroup().addTo(recMap),
+    embeddings: L.layerGroup().addTo(recMap),
+    text: L.layerGroup().addTo(recMap),
+    query: L.layerGroup().addTo(recMap),
+    mbr: L.layerGroup().addTo(recMap),
+  };
+
+  L.control.layers(null, {
+    'BoVW': recMapLayers.bovw,
+    'Embeddings': recMapLayers.embeddings,
+    'Texto': recMapLayers.text,
+    'Consulta': recMapLayers.query,
+    'MBR': recMapLayers.mbr,
+  }, { collapsed: false, position: 'topright' }).addTo(recMap);
+
+  return recMap;
+}
+
+function mapPopup(item, scoreLabel) {
+  const box = document.createElement('div');
+  box.className = 'map-popup';
+
+  const title = document.createElement('strong');
+  title.textContent = item.titulo || 'Sin título';
+  const price = document.createElement('div');
+  price.className = 'map-price';
+  price.textContent = currency.format(item.precio || 0);
+  const meta = document.createElement('div');
+  meta.className = 'map-meta';
+  meta.textContent = [item.categoria, item.ciudad, item.estado].filter(Boolean).join(' · ');
+  const place = document.createElement('div');
+  place.className = 'map-meta';
+  const placeParts = [];
+  if (item.tienda) placeParts.push(`Tienda: ${item.tienda}`);
+  if (item.distancia_km != null) placeParts.push(`a ${decimal.format(item.distancia_km)} km`);
+  place.textContent = placeParts.join(' · ');
+  const score = document.createElement('div');
+  score.className = 'map-score';
+  score.textContent = `${scoreLabel}: ${decimal.format(item.score ?? 0)}`;
+
+  box.append(title, price, meta);
+  if (place.textContent) box.append(place);
+  box.append(score);
+  return box;
+}
+
+function addMapPoint(layer, item, color, scoreLabel) {
+  const lat = Number(item.latitud);
+  const lon = Number(item.longitud);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+
+  L.circleMarker([lat, lon], {
+    radius: 7,
+    color,
+    weight: 2,
+    fillColor: color,
+    fillOpacity: 0.75,
+  }).bindPopup(mapPopup(item, scoreLabel)).addTo(layer);
+
+  return [lat, lon];
+}
+
+function renderRecommendationMap(data) {
+  const panel = byId('rec-map-panel');
+  const bovw = data.bovw?.results || [];
+  const embeddings = data.embeddings?.results || [];
+  const text = data.text?.results || [];
+  const hasData = Boolean(data.map?.center) || bovw.length || embeddings.length || text.length;
+
+  if (!hasData) {
+    panel.hidden = true;
+    return;
+  }
+
+  panel.hidden = false;
+  const map = ensureRecommendationMap();
+
+  if (!map) {
+    panel.hidden = true;
+    return;
+  }
+
+  for (const layer of Object.values(recMapLayers)) layer.clearLayers();
+
+  const points = [];
+  const center = data.map?.center;
+
+  if (center) {
+    const point = [Number(center.lat), Number(center.lon)];
+    points.push(point);
+    L.circleMarker(point, {
+      radius: 8,
+      color: '#111827',
+      weight: 2,
+      fillColor: '#111827',
+      fillOpacity: 1,
+    }).bindPopup('Punto de consulta').addTo(recMapLayers.query);
+
+    const radius = Number(data.map?.radius_km);
+    if (Number.isFinite(radius) && radius > 0) {
+      const circle = L.circle(point, {
+        radius: radius * 1000,
+        color: '#111827',
+        weight: 1,
+        fill: false,
+        dashArray: '6 4',
+      }).addTo(recMapLayers.query);
+      points.push(circle.getBounds().getSouthWest(), circle.getBounds().getNorthEast());
+    }
+  }
+
+  const bbox = data.map?.bbox;
+  if (bbox) {
+    L.rectangle([[bbox.lat_min, bbox.lon_min], [bbox.lat_max, bbox.lon_max]], {
+      color: '#6b7280',
+      weight: 1,
+      fill: false,
+      dashArray: '4 3',
+    }).addTo(recMapLayers.mbr);
+  }
+
+  for (const item of bovw) {
+    const point = addMapPoint(recMapLayers.bovw, item, '#2563eb', 'Similitud coseno');
+    if (point) points.push(point);
+  }
+
+  for (const item of embeddings) {
+    const point = addMapPoint(recMapLayers.embeddings, item, '#ea580c', 'Distancia coseno');
+    if (point) points.push(point);
+  }
+
+  for (const item of text) {
+    const point = addMapPoint(recMapLayers.text, item, '#16a34a', 'Similitud coseno');
+    if (point) points.push(point);
+  }
+
+  setTimeout(() => {
+    map.invalidateSize();
+    if (points.length) {
+      map.fitBounds(L.latLngBounds(points).pad(0.15), { maxZoom: 12 });
+    } else {
+      map.setView([0, 0], 2);
+    }
+  }, 30);
+}
+
 function renderRecommendation(data, payload) {
   const imageMode = data.mode === 'image';
   const summary = byId('rec-query');
@@ -604,6 +770,8 @@ function renderRecommendation(data, payload) {
     renderProductCards(byId('rec-text-results'), data.text.results, 'Similitud coseno');
     byId('rec-text-metrics').textContent = recMetrics(data.text);
   }
+
+  renderRecommendationMap(data);
 
   const parts = [];
   if (data.query) {

@@ -203,6 +203,17 @@ class RecommenderService:
         return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
     @staticmethod
+    def _bounds(lat: float, lon: float, radius_km: float) -> dict:
+        delta_lat = radius_km / 111.0
+        delta_lon = radius_km / (111.0 * max(0.1, math.cos(math.radians(lat))))
+        return {
+            'lat_min': lat - delta_lat,
+            'lat_max': lat + delta_lat,
+            'lon_min': lon - delta_lon,
+            'lon_max': lon + delta_lon,
+        }
+
+    @staticmethod
     def _filters(max_price, lat, lon, radius_km) -> tuple[list[str], float | None]:
         clauses: list[str] = []
         radius = radius_km
@@ -212,12 +223,11 @@ class RecommenderService:
 
         if lat is not None and lon is not None:
             radius = float(radius_km or 50.0)
-            delta_lat = radius / 111.0
-            delta_lon = radius / (111.0 * max(0.1, math.cos(math.radians(lat))))
-            clauses.append(f'latitud >= {lat - delta_lat:.6f}')
-            clauses.append(f'latitud <= {lat + delta_lat:.6f}')
-            clauses.append(f'longitud >= {lon - delta_lon:.6f}')
-            clauses.append(f'longitud <= {lon + delta_lon:.6f}')
+            bounds = RecommenderService._bounds(lat, lon, radius)
+            clauses.append(f"latitud >= {bounds['lat_min']:.6f}")
+            clauses.append(f"latitud <= {bounds['lat_max']:.6f}")
+            clauses.append(f"longitud >= {bounds['lon_min']:.6f}")
+            clauses.append(f"longitud <= {bounds['lon_max']:.6f}")
 
         return clauses, radius
 
@@ -299,10 +309,23 @@ class RecommenderService:
             if request.lat is not None and request.lon is not None
             else limit
         )
+        map_context = {'center': None, 'radius_km': None, 'bbox': None}
+
+        if request.lat is not None and request.lon is not None:
+            map_radius = float(radius or 50.0)
+            map_context = {
+                'center': {'lat': request.lat, 'lon': request.lon},
+                'radius_km': map_radius,
+                'bbox': RecommenderService._bounds(
+                    request.lat, request.lon, map_radius,
+                ),
+            }
+
         response = {
             'success': True,
             'mode': 'image' if has_image else 'text',
             'limit': limit,
+            'map': map_context,
             'filters': {
                 'max_price': request.max_price,
                 'lat': request.lat,

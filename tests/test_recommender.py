@@ -37,6 +37,13 @@ class RecommenderGeometryTests(unittest.TestCase):
         self.assertTrue(any('latitud >=' in clause for clause in clauses))
         self.assertTrue(any('longitud <=' in clause for clause in clauses))
 
+    def test_bounds_cover_radius(self):
+        bounds = RecommenderService._bounds(37.77, -122.42, 100)
+        self.assertLess(bounds['lat_min'], 37.77)
+        self.assertGreater(bounds['lat_max'], 37.77)
+        self.assertLess(bounds['lon_min'], -122.42)
+        self.assertGreater(bounds['lon_max'], -122.42)
+
     def test_distance_km(self):
         distance = RecommenderService._distance_km(
             37.77, -122.42, 34.05, -118.24,

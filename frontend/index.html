@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BD2 · Motor Multimodal</title>
   <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="./styles.css">
+  <script src="./vendor/leaflet/leaflet.js" defer></script>
   <script src="./app.js" defer></script>
 </head>
 <body>
@@ -117,6 +119,19 @@ WHERE Student_ID &gt;= 100 AND Student_ID &lt;= 150;</textarea>
         <p class="rec-hint">Similitud coseno: mayor = más parecido.</p>
         <div class="rec-results" id="rec-text-results"></div>
         <p class="rec-metrics" id="rec-text-metrics"></p>
+      </section>
+      <section class="panel rec-panel rec-map-panel" id="rec-map-panel" hidden>
+        <div class="rec-map-head">
+          <h3>Mapa · resultados y radio</h3>
+          <div class="rec-map-legend" aria-label="Leyenda del mapa">
+            <span><i class="dot-bovw"></i>BoVW</span>
+            <span><i class="dot-emb"></i>Embeddings</span>
+            <span><i class="dot-text"></i>Texto</span>
+            <span><i class="dot-query"></i>Consulta</span>
+            <span><i class="dot-mbr"></i>MBR</span>
+          </div>
+        </div>
+        <div id="rec-map"></div>
       </section>
       <p class="rec-comparison" id="rec-comparison"></p>
     </section>
