@@ -239,8 +239,9 @@ class RecommenderService:
                 name: row[position]
                 for name, position in index.items()
                 if name in {
-                    'id', 'titulo', 'precio', 'categoria', 'tienda',
-                    'ciudad', 'estado', 'latitud', 'longitud', 'imagen', 'score',
+                    'id', 'titulo', 'descripcion', 'precio', 'categoria',
+                    'tienda', 'ciudad', 'estado', 'latitud', 'longitud',
+                    'imagen', 'score',
                 }
             }
             item['imagen_url'] = f"/media/{item.get('imagen', '')}"
@@ -289,13 +290,19 @@ class RecommenderService:
         where = (' AND ' + ' AND '.join(clauses)) if clauses else ''
         where_clause = ('WHERE ' + ' AND '.join(clauses)) if clauses else ''
         columns = (
-            'id, titulo, precio, categoria, tienda, ciudad, estado, '
-            'latitud, longitud, imagen'
+            'id, titulo, descripcion, precio, categoria, tienda, ciudad, '
+            'estado, latitud, longitud, imagen'
         )
         limit = max(1, min(int(request.limit), 20))
+        fetch_limit = (
+            min(limit * 4, 50)
+            if request.lat is not None and request.lon is not None
+            else limit
+        )
         response = {
             'success': True,
             'mode': 'image' if has_image else 'text',
+            'limit': limit,
             'filters': {
                 'max_price': request.max_price,
                 'lat': request.lat,
@@ -315,13 +322,13 @@ class RecommenderService:
                 'SET ivf.probes = 10;'
                 f'SELECT {columns}, embedding <=> '
                 f"'[{','.join(f'{value:.7f}' for value in embedding)}]' AS score "
-                f'FROM {TABLE} {where_clause} ORDER BY score ASC LIMIT {limit};'
+                f'FROM {TABLE} {where_clause} ORDER BY score ASC LIMIT {fetch_limit};'
             )
             embeddings_payload = self._run(embeddings_sql)
             response['embeddings'] = {
                 'results': self._rows(
                     embeddings_payload, request.lat, request.lon, radius,
-                ),
+                )[:limit],
                 **self._summary(embeddings_payload),
             }
 
@@ -329,13 +336,13 @@ class RecommenderService:
                 bovw_sql = (
                     f'SELECT {columns}, COSINE_SCORE() AS score FROM {TABLE} '
                     f"WHERE palabras MATCH '{self._escape(document)}'{where} "
-                    f'ORDER BY score DESC LIMIT {limit};'
+                    f'ORDER BY score DESC LIMIT {fetch_limit};'
                 )
                 bovw_payload = self._run(bovw_sql)
                 response['bovw'] = {
                     'results': self._rows(
                         bovw_payload, request.lat, request.lon, radius,
-                    ),
+                    )[:limit],
                     **self._summary(bovw_payload),
                 }
 
@@ -358,13 +365,13 @@ class RecommenderService:
             text_sql = (
                 f'SELECT {columns}, COSINE_SCORE() AS score FROM {TABLE} '
                 f"WHERE descripcion MATCH '{self._escape(request.description.strip())}'"
-                f'{where} ORDER BY score DESC LIMIT {limit};'
+                f'{where} ORDER BY score DESC LIMIT {fetch_limit};'
             )
             text_payload = self._run(text_sql)
             response['text'] = {
                 'results': self._rows(
                     text_payload, request.lat, request.lon, radius,
-                ),
+                )[:limit],
                 **self._summary(text_payload),
             }
 

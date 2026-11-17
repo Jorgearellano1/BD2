@@ -282,6 +282,11 @@ CREATE INDEX idx_veh_vec ON vehiculos(embedding) USING IVF WITH (lists = 2, metr
             )
             self.assertEqual(data['text']['results'][0]['imagen_url'], '/media/a.jpg')
             self.assertEqual(data['text']['results'][0]['distancia_km'], 0.0)
+            self.assertEqual(
+                data['text']['results'][0]['descripcion'],
+                'Red sports car with low mileage and manual transmission',
+            )
+            self.assertEqual(data['limit'], 5)
 
             response = client.get('/api/recommend/samples?limit=3')
             self.assertEqual(response.status_code, 200, response.text)

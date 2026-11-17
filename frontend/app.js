@@ -477,6 +477,12 @@ byId('rec-image').addEventListener('change', (event) => {
   reader.readAsDataURL(file);
 });
 
+function syncLocationControls() {
+  const hasCity = Boolean(byId('rec-city').value);
+  byId('rec-radius').disabled = !hasCity;
+  byId('rec-radius-hint').hidden = hasCity;
+}
+
 function clearRecommendation() {
   recImageData = null;
   byId('rec-image').value = '';
@@ -486,19 +492,24 @@ function clearRecommendation() {
   byId('rec-price').value = '';
   byId('rec-city').value = '';
   byId('rec-radius').value = '80';
+  byId('rec-limit').value = '5';
   byId('rec-status').textContent = '';
   byId('rec-status').className = 'result-message';
+  byId('rec-query').textContent = '';
+  byId('rec-query').hidden = true;
   for (const id of ['rec-bovw', 'rec-emb', 'rec-text-results']) byId(id).replaceChildren();
   for (const id of ['rec-bovw-metrics', 'rec-emb-metrics', 'rec-text-metrics', 'rec-comparison']) byId(id).textContent = '';
   byId('rec-bovw-panel').hidden = false;
   byId('rec-emb-panel').hidden = false;
   byId('rec-text-panel').hidden = true;
+  syncLocationControls();
 }
 
 function recMetrics(payload) {
   const metrics = payload.metrics || {};
   const io = payload.io_breakdown || {};
   return [
+    `Resultados: ${format.format(payload.results?.length || 0)}`,
     payload.plan ? `Plan: ${payload.plan}` : null,
     payload.strategy ? `Estrategia: ${payload.strategy}` : null,
     `Lecturas índice: ${format.format(io.index_reads || 0)} · tabla: ${format.format(io.table_reads || 0)}`,
@@ -527,33 +538,70 @@ function renderProductCards(container, results, scoreLabel = 'Score') {
       textElement('div', currency.format(item.precio || 0), 'product-price'),
       textElement('div', [item.categoria, item.ciudad, item.estado].filter(Boolean).join(' · '), 'product-meta'),
     );
-    const scoreParts = [];
-    if (item.distancia_km != null) scoreParts.push(`Tienda: ${decimal.format(item.distancia_km)} km`);
-    scoreParts.push(`${scoreLabel}: ${decimal.format(item.score ?? 0)}`);
-    info.append(textElement('div', scoreParts.join(' · '), 'product-score'));
+    const storeParts = [];
+    if (item.tienda) storeParts.push(`Tienda: ${item.tienda}`);
+    if (item.distancia_km != null) storeParts.push(`a ${decimal.format(item.distancia_km)} km`);
+    if (storeParts.length) {
+      info.append(textElement('div', storeParts.join(' · '), 'product-store'));
+    }
+    const description = (item.descripcion || '').replace(/\s+/g, ' ').trim();
+    if (description) {
+      const snippet = description.length > 160 ? `${description.slice(0, 157)}…` : description;
+      info.append(textElement('p', snippet, 'product-desc'));
+    }
+    info.append(textElement('div', `${scoreLabel}: ${decimal.format(item.score ?? 0)}`, 'product-score'));
     article.append(image, info);
     container.append(article);
   }
 }
 
-function renderRecommendation(data) {
+function querySummary(data, payload, cityLabel) {
+  const parts = [];
+
+  if (data.mode === 'image') {
+    const terms = format.format(data.query?.histogram_terms || 0);
+    const dimension = format.format(data.query?.embedding_dim || 0);
+    parts.push(`Consulta: imagen · ${terms} términos BoVW · embedding ${dimension}D`);
+  } else {
+    const text = (payload?.description || '').trim();
+    const snippet = text.length > 60 ? `${text.slice(0, 57)}…` : text;
+    parts.push(`Consulta: texto${snippet ? ` “${snippet}”` : ''}`);
+  }
+
+  const filters = data.filters || {};
+  const filterParts = [];
+  if (filters.max_price != null) filterParts.push(`precio ≤ ${currency.format(filters.max_price)}`);
+  if (filters.lat != null && filters.lon != null) {
+    const radius = Number(filters.radius_km);
+    filterParts.push([cityLabel, Number.isFinite(radius) ? `${decimal.format(radius)} km` : null].filter(Boolean).join(' · '));
+  }
+  parts.push(filterParts.length ? `Filtros: ${filterParts.join(' · ')}` : 'Filtros: ninguno');
+  parts.push(`Top-${data.limit || payload?.limit || 5}`);
+
+  return parts.join(' | ');
+}
+
+function renderRecommendation(data, payload) {
   const imageMode = data.mode === 'image';
+  const summary = byId('rec-query');
+  summary.textContent = querySummary(data, payload);
+  summary.hidden = false;
   byId('rec-bovw-panel').hidden = !(imageMode && data.bovw);
   byId('rec-emb-panel').hidden = !(imageMode && data.embeddings);
   byId('rec-text-panel').hidden = !data.text;
 
   if (data.bovw) {
-    renderProductCards(byId('rec-bovw'), data.bovw.results, 'Similitud');
+    renderProductCards(byId('rec-bovw'), data.bovw.results, 'Similitud coseno');
     byId('rec-bovw-metrics').textContent = recMetrics(data.bovw);
   }
 
   if (data.embeddings) {
-    renderProductCards(byId('rec-emb'), data.embeddings.results, 'Distancia');
+    renderProductCards(byId('rec-emb'), data.embeddings.results, 'Distancia coseno');
     byId('rec-emb-metrics').textContent = recMetrics(data.embeddings);
   }
 
   if (data.text) {
-    renderProductCards(byId('rec-text-results'), data.text.results, 'Similitud');
+    renderProductCards(byId('rec-text-results'), data.text.results, 'Similitud coseno');
     byId('rec-text-metrics').textContent = recMetrics(data.text);
   }
 
@@ -587,10 +635,14 @@ async function submitRecommendation() {
   try {
     const price = Number(byId('rec-price').value);
     const city = byId('rec-city').value;
+    const requested = Number(byId('rec-limit').value);
+    const limit = Number.isFinite(requested)
+      ? Math.max(1, Math.min(20, Math.trunc(requested)))
+      : 5;
     const payload = {
       description: description || null,
       max_price: Number.isFinite(price) && price > 0 ? price : null,
-      limit: 5,
+      limit,
     };
 
     if (recImageData) payload.image_base64 = recImageData;
@@ -613,7 +665,7 @@ async function submitRecommendation() {
       throw new Error(typeof data.detail === 'string' ? data.detail : 'No se pudo generar la recomendación.');
     }
 
-    renderRecommendation(data);
+    renderRecommendation(data, payload);
     status.textContent = payload.image_base64
       ? 'Comparación BoVW vs embeddings completada.'
       : 'Búsqueda por descripción completada.';
@@ -628,6 +680,8 @@ async function submitRecommendation() {
 
 byId('rec-run').addEventListener('click', submitRecommendation);
 byId('rec-clear').addEventListener('click', clearRecommendation);
+byId('rec-city').addEventListener('change', syncLocationControls);
 
+syncLocationControls();
 highlightSql();
 loadTables();
