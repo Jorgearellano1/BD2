@@ -229,7 +229,7 @@ class RecommenderService:
 
         return payload
 
-    def _rows(self, payload: dict, lat, lon) -> list[dict]:
+    def _rows(self, payload: dict, lat, lon, radius=None) -> list[dict]:
         columns = payload.get('columns', [])
         index = {name: position for position, name in enumerate(columns)}
         results = []
@@ -247,12 +247,17 @@ class RecommenderService:
 
             if lat is not None and lon is not None:
                 try:
-                    item['distancia_km'] = round(self._distance_km(
+                    distance = round(self._distance_km(
                         float(lat), float(lon),
                         float(item['latitud']), float(item['longitud']),
                     ), 1)
                 except (KeyError, TypeError, ValueError):
-                    pass
+                    distance = None
+
+                if distance is not None:
+                    if radius is not None and distance > radius:
+                        continue
+                    item['distancia_km'] = distance
 
             results.append(item)
 
@@ -314,7 +319,9 @@ class RecommenderService:
             )
             embeddings_payload = self._run(embeddings_sql)
             response['embeddings'] = {
-                'results': self._rows(embeddings_payload, request.lat, request.lon),
+                'results': self._rows(
+                    embeddings_payload, request.lat, request.lon, radius,
+                ),
                 **self._summary(embeddings_payload),
             }
 
@@ -327,7 +334,7 @@ class RecommenderService:
                 bovw_payload = self._run(bovw_sql)
                 response['bovw'] = {
                     'results': self._rows(
-                        bovw_payload, request.lat, request.lon,
+                        bovw_payload, request.lat, request.lon, radius,
                     ),
                     **self._summary(bovw_payload),
                 }
@@ -355,7 +362,9 @@ class RecommenderService:
             )
             text_payload = self._run(text_sql)
             response['text'] = {
-                'results': self._rows(text_payload, request.lat, request.lon),
+                'results': self._rows(
+                    text_payload, request.lat, request.lon, radius,
+                ),
                 **self._summary(text_payload),
             }
 
