@@ -3,16 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BD2 · Cliente SQL</title>
+  <title>BD2 · Motor Multimodal</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="./styles.css">
   <script src="./app.js" defer></script>
 </head>
 <body>
   <header class="app-header">
-    <h1>BD2 - Cliente SQL</h1>
+    <h1>BD2 - Motor Multimodal</h1>
+    <nav class="view-tabs" role="tablist" aria-label="Vista principal">
+      <button id="sql-view-tab" type="button" role="tab" aria-selected="true" aria-controls="sql-view">Cliente SQL</button>
+      <button id="recommend-view-tab" type="button" role="tab" aria-selected="false" aria-controls="recommend-view" tabindex="-1">Recomendador</button>
+    </nav>
   </header>
-  <main class="workspace">
+  <main class="workspace" id="sql-view">
     <aside class="panel explorer" aria-labelledby="tables-heading">
       <div class="panel-header"><h2 id="tables-heading">Tablas</h2><button class="text-button" id="refresh" type="button">Actualizar</button></div>
       <div class="table-list" id="table-list" aria-busy="true"><p class="empty">Cargando tablas…</p></div>
@@ -46,6 +50,67 @@ WHERE Student_ID &gt;= 100 AND Student_ID &lt;= 150;</textarea>
         <figure class="io-chart" aria-label="Comparación de bloques leídos y escritos"><figcaption>Transferencias de bloques</figcaption><div class="bar-row"><span>Lecturas</span><div class="bar-track"><div class="bar" id="reads-bar"></div></div></div><div class="bar-row"><span>Escrituras</span><div class="bar-track"><div class="bar secondary" id="writes-bar"></div></div></div></figure>
         <p class="page-size" id="page-size"></p>
       </div>
+    </section>
+  </main>
+  <main class="recommend-view" id="recommend-view" hidden>
+    <section class="panel recommend-filters" aria-labelledby="recommend-heading">
+      <div class="panel-header"><h2 id="recommend-heading">Recomendador de vehículos</h2></div>
+      <p class="empty">Sube una foto o escribe qué buscas. Se combinan precio (B+), ubicación (R-Tree), BoVW (índice invertido) y embeddings (IVF).</p>
+      <label>Foto del vehículo
+        <input id="rec-image" type="file" accept="image/*">
+      </label>
+      <img id="rec-preview" alt="Vista previa del vehículo" hidden>
+      <label>o descripción textual
+        <textarea id="rec-text" placeholder="Ej.: red sports car, automatic, low mileage"></textarea>
+      </label>
+      <label>Precio máximo (USD)
+        <input id="rec-price" type="number" min="0" step="100" placeholder="Sin límite">
+      </label>
+      <label>Ciudad
+        <select id="rec-city">
+          <option value="">Sin filtro de ubicación</option>
+          <option value="37.7749,-122.4194">San Francisco, CA</option>
+          <option value="34.0522,-118.2437">Los Angeles, CA</option>
+          <option value="32.7157,-117.1611">San Diego, CA</option>
+          <option value="47.6062,-122.3321">Seattle, WA</option>
+          <option value="40.7128,-74.0060">New York, NY</option>
+          <option value="41.8781,-87.6298">Chicago, IL</option>
+          <option value="29.7604,-95.3698">Houston, TX</option>
+          <option value="30.2672,-97.7431">Austin, TX</option>
+          <option value="25.7617,-80.1918">Miami, FL</option>
+          <option value="39.7392,-104.9903">Denver, CO</option>
+          <option value="42.3601,-71.0589">Boston, MA</option>
+          <option value="33.4484,-112.0740">Phoenix, AZ</option>
+        </select>
+      </label>
+      <label>Radio (km)
+        <input id="rec-radius" type="number" min="1" value="80">
+      </label>
+      <div class="editor-actions">
+        <button class="primary" id="rec-run" type="button">Recomendar</button>
+        <button id="rec-clear" type="button">Limpiar</button>
+      </div>
+      <p id="rec-status" class="result-message" role="status"></p>
+    </section>
+    <section class="recommend-results" aria-label="Recomendaciones">
+      <div class="rec-columns">
+        <section class="panel rec-panel" id="rec-bovw-panel">
+          <h3>BoVW · SIFT + índice invertido</h3>
+          <div class="rec-results" id="rec-bovw"></div>
+          <p class="rec-metrics" id="rec-bovw-metrics"></p>
+        </section>
+        <section class="panel rec-panel" id="rec-emb-panel">
+          <h3>Embeddings · ResNet-18 + IVF</h3>
+          <div class="rec-results" id="rec-emb"></div>
+          <p class="rec-metrics" id="rec-emb-metrics"></p>
+        </section>
+      </div>
+      <section class="panel rec-panel" id="rec-text-panel" hidden>
+        <h3>Texto · índice invertido</h3>
+        <div class="rec-results" id="rec-text-results"></div>
+        <p class="rec-metrics" id="rec-text-metrics"></p>
+      </section>
+      <p class="rec-comparison" id="rec-comparison"></p>
     </section>
   </main>
 </body>

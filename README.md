@@ -15,7 +15,9 @@ pip install -r requirements.txt
 El motor relacional y el módulo vectorial usan únicamente la biblioteca
 estándar. El módulo textual usa `nltk` para el stemming Snowball y el API HTTP
 requiere `fastapi` y `uvicorn`; todo está incluido en `requirements.txt`.
-`pytest` y `httpx` cubren la suite de pruebas.
+`pytest` y `httpx` cubren la suite de pruebas. El recomendador con subida de
+imágenes necesita además `torch`, `torchvision`, `opencv-python-headless`,
+`Pillow` y `numpy`: `pip install -r requirements-vision.txt`.
 
 ## Estructura
 
@@ -32,7 +34,8 @@ backend/
   algorithms/       utilidades de ordenamiento y mezcla
 rtree/              R-Tree persistente en disco
 frontend/
-data/datasets/
+data/datasets/       datasets (incluye cars/ para el recomendador)
+data/models/         pesos locales de ResNet-18
 storage/
 benchmarks/results/
 temp_runs/          catalogos y datos temporales de ejecucion
@@ -168,7 +171,28 @@ El planificador reporta la estrategia (`INDEX_ONLY`, `PRE_FILTER`,
 del Heap. `SET ivf.probes` afecta a las sentencias siguientes del mismo
 script, así que conviene enviarlo junto con la consulta. Los benchmarks
 comparan BoVW (índice invertido) con embeddings densos y miden el compromiso
-recall-latencia del IVF:
+recall-latencia del IVF.
+
+## Recomendador multimodal
+
+La pestaña **Recomendador** del cliente web usa un dataset real de Craigslist
+(12,000 vehículos, licencia CC0) con imagen, título, descripción, precio,
+categoría y ubicación. Permite subir una foto o escribir una descripción,
+filtrar por precio y cercanía de tienda, y compara BoVW (SIFT + índice
+invertido) con embeddings densos (ResNet-18 + IVF).
+
+Preparación:
+
+```bash
+curl -L -o data/raw/craigslist/cars.zip   https://www.kaggle.com/api/v1/datasets/download/austinreese/craigslist-carstrucks-data
+pip install -r requirements-vision.txt
+python benchmarks/vector/build_car_dataset.py --zip data/raw/craigslist/cars.zip
+python benchmarks/vector/load_car_db.py
+uvicorn main:app --reload
+```
+
+El detalle de los pasos está en `benchmarks/vector/README.md`. Endpoints:
+`POST /api/recommend`, `GET /api/recommend/samples` y `/media/<imagen>`.
 
 ```bash
 python benchmarks/vector/run_experiment7.py --quick

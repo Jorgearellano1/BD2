@@ -105,3 +105,32 @@ td.numeric { text-align: right; }
 #results-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 #explain-view { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
 #explain { font: 14px/1.8 monospace; }
+
+/* Recomendador */
+.app-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.view-tabs { display: flex; gap: 8px; }
+.view-tabs [aria-selected="true"] { background: #ddd; border-color: #555; font-weight: bold; }
+.recommend-view { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px; padding: 20px; height: calc(100dvh - 57px); min-height: 600px; }
+.recommend-filters { border-right: 1px solid #ccc; padding-right: 16px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+.recommend-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.recommend-filters input, .recommend-filters textarea, .recommend-filters select { width: 100%; padding: 7px 8px; border: 1px solid #aaa; background: white; }
+.recommend-filters textarea { min-height: 90px; resize: vertical; font: inherit; }
+#rec-preview { width: 100%; max-height: 200px; object-fit: cover; border: 1px solid #ccc; }
+.recommend-results { min-width: 0; overflow: auto; }
+.rec-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.rec-panel { border: 1px solid #ccc; padding: 12px; min-height: 220px; }
+.rec-panel h3 { margin: 0 0 10px; font-size: 14px; }
+.rec-results { display: flex; flex-direction: column; gap: 10px; }
+.product-card { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+.product-card img { width: 96px; height: 72px; object-fit: cover; background: #eee; }
+.product-title { font-weight: bold; overflow-wrap: anywhere; }
+.product-price { font-weight: bold; margin-top: 2px; }
+.product-meta, .product-score, .rec-metrics { color: #555; font-size: 12px; }
+.rec-metrics { margin-top: 10px; overflow-wrap: anywhere; }
+.rec-comparison { margin-top: 12px; color: #555; font-size: 12px; }
+#rec-status { min-height: 20px; }
+@media (max-width: 850px) {
+  .recommend-view { grid-template-columns: 1fr; height: auto; }
+  .recommend-filters { border-right: 0; border-bottom: 1px solid #ccc; padding-right: 0; padding-bottom: 16px; }
+  .rec-columns { grid-template-columns: 1fr; }
+}

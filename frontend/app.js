@@ -1,6 +1,7 @@
 const byId = (id) => document.getElementById(id);
 const format = new Intl.NumberFormat('es-PE');
 const decimal = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 3 });
+const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const state = { tables: [], selected: null, result: null, busy: false, connected: false };
 const editor = byId('sql');
 const highlight = byId('highlight');
@@ -425,6 +426,208 @@ window.addEventListener('resize', () => {
   if (window.matchMedia('(max-width: 850px)').matches) return;
   setEditorHeight(editorPanelHeight(), false);
 });
+
+// Recomendador multimodal
+let recImageData = null;
+let recBusy = false;
+
+function selectMainView(name) {
+  for (const view of ['sql', 'recommend']) {
+    const active = view === name;
+    byId(`${view}-view-tab`).setAttribute('aria-selected', String(active));
+    byId(`${view}-view-tab`).tabIndex = active ? 0 : -1;
+    byId(`${view}-view`).hidden = !active;
+  }
+  history.replaceState(null, '', name === 'recommend' ? '#recomendador' : '#cliente-sql');
+}
+
+for (const name of ['sql', 'recommend']) {
+  const tab = byId(`${name}-view-tab`);
+  tab.addEventListener('click', () => selectMainView(name));
+  tab.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const next = event.key === 'Home' ? 'sql' : event.key === 'End' ? 'recommend' : name === 'sql' ? 'recommend' : 'sql';
+    selectMainView(next);
+    byId(`${next}-view-tab`).focus();
+  });
+}
+
+selectMainView(location.hash === '#recomendador' ? 'recommend' : 'sql');
+window.addEventListener('hashchange', () => {
+  selectMainView(location.hash === '#recomendador' ? 'recommend' : 'sql');
+});
+
+byId('rec-image').addEventListener('change', (event) => {
+  const file = event.target.files?.[0];
+  const preview = byId('rec-preview');
+
+  if (!file) {
+    recImageData = null;
+    preview.hidden = true;
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    recImageData = reader.result;
+    preview.src = reader.result;
+    preview.hidden = false;
+  };
+  reader.readAsDataURL(file);
+});
+
+function clearRecommendation() {
+  recImageData = null;
+  byId('rec-image').value = '';
+  byId('rec-preview').hidden = true;
+  byId('rec-preview').removeAttribute('src');
+  byId('rec-text').value = '';
+  byId('rec-price').value = '';
+  byId('rec-city').value = '';
+  byId('rec-radius').value = '80';
+  byId('rec-status').textContent = '';
+  byId('rec-status').className = 'result-message';
+  for (const id of ['rec-bovw', 'rec-emb', 'rec-text-results']) byId(id).replaceChildren();
+  for (const id of ['rec-bovw-metrics', 'rec-emb-metrics', 'rec-text-metrics', 'rec-comparison']) byId(id).textContent = '';
+  byId('rec-bovw-panel').hidden = false;
+  byId('rec-emb-panel').hidden = false;
+  byId('rec-text-panel').hidden = true;
+}
+
+function recMetrics(payload) {
+  const metrics = payload.metrics || {};
+  const io = payload.io_breakdown || {};
+  return [
+    payload.plan ? `Plan: ${payload.plan}` : null,
+    payload.strategy ? `Estrategia: ${payload.strategy}` : null,
+    `Lecturas índice: ${format.format(io.index_reads || 0)} · tabla: ${format.format(io.table_reads || 0)}`,
+    `Tiempo: ${decimal.format(metrics.execution_ms || 0)} ms`,
+  ].filter(Boolean).join(' · ');
+}
+
+function renderProductCards(container, results, scoreLabel = 'Score') {
+  container.replaceChildren();
+
+  if (!results?.length) {
+    container.append(textElement('p', 'Sin resultados.', 'empty'));
+    return;
+  }
+
+  for (const item of results) {
+    const article = document.createElement('article');
+    article.className = 'product-card';
+    const image = document.createElement('img');
+    image.src = item.imagen_url;
+    image.alt = item.titulo || 'Vehículo';
+    image.loading = 'lazy';
+    const info = document.createElement('div');
+    info.append(
+      textElement('div', item.titulo || 'Sin título', 'product-title'),
+      textElement('div', currency.format(item.precio || 0), 'product-price'),
+      textElement('div', [item.categoria, item.ciudad, item.estado].filter(Boolean).join(' · '), 'product-meta'),
+    );
+    const scoreParts = [];
+    if (item.distancia_km != null) scoreParts.push(`Tienda: ${decimal.format(item.distancia_km)} km`);
+    scoreParts.push(`${scoreLabel}: ${decimal.format(item.score ?? 0)}`);
+    info.append(textElement('div', scoreParts.join(' · '), 'product-score'));
+    article.append(image, info);
+    container.append(article);
+  }
+}
+
+function renderRecommendation(data) {
+  const imageMode = data.mode === 'image';
+  byId('rec-bovw-panel').hidden = !(imageMode && data.bovw);
+  byId('rec-emb-panel').hidden = !(imageMode && data.embeddings);
+  byId('rec-text-panel').hidden = !data.text;
+
+  if (data.bovw) {
+    renderProductCards(byId('rec-bovw'), data.bovw.results, 'Similitud');
+    byId('rec-bovw-metrics').textContent = recMetrics(data.bovw);
+  }
+
+  if (data.embeddings) {
+    renderProductCards(byId('rec-emb'), data.embeddings.results, 'Distancia');
+    byId('rec-emb-metrics').textContent = recMetrics(data.embeddings);
+  }
+
+  if (data.text) {
+    renderProductCards(byId('rec-text-results'), data.text.results, 'Similitud');
+    byId('rec-text-metrics').textContent = recMetrics(data.text);
+  }
+
+  const parts = [];
+  if (data.query) {
+    parts.push(`Consulta: ${format.format(data.query.histogram_terms || 0)} términos visuales · embedding ${format.format(data.query.embedding_dim || 0)}D`);
+  }
+  if (data.comparison) {
+    parts.push(`Coincidencias BoVW/embeddings en Top-${data.comparison.limit}: ${data.comparison.overlap}`);
+  }
+  byId('rec-comparison').textContent = parts.join(' · ');
+}
+
+async function submitRecommendation() {
+  if (recBusy) return;
+
+  const description = byId('rec-text').value.trim();
+  const status = byId('rec-status');
+
+  if (!recImageData && !description) {
+    status.className = 'result-message error';
+    status.textContent = 'Sube una foto o escribe una descripción.';
+    return;
+  }
+
+  recBusy = true;
+  byId('rec-run').disabled = true;
+  status.className = 'result-message';
+  status.textContent = 'Consultando BoVW, embeddings y filtros…';
+
+  try {
+    const price = Number(byId('rec-price').value);
+    const city = byId('rec-city').value;
+    const payload = {
+      description: description || null,
+      max_price: Number.isFinite(price) && price > 0 ? price : null,
+      limit: 5,
+    };
+
+    if (recImageData) payload.image_base64 = recImageData;
+
+    if (city) {
+      const [lat, lon] = city.split(',').map(Number);
+      payload.lat = lat;
+      payload.lon = lon;
+      payload.radius_km = Number(byId('rec-radius').value) || 80;
+    }
+
+    const response = await fetch('/api/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(typeof data.detail === 'string' ? data.detail : 'No se pudo generar la recomendación.');
+    }
+
+    renderRecommendation(data);
+    status.textContent = payload.image_base64
+      ? 'Comparación BoVW vs embeddings completada.'
+      : 'Búsqueda por descripción completada.';
+  } catch (error) {
+    status.className = 'result-message error';
+    status.textContent = error.message;
+  } finally {
+    recBusy = false;
+    byId('rec-run').disabled = false;
+  }
+}
+
+byId('rec-run').addEventListener('click', submitRecommendation);
+byId('rec-clear').addEventListener('click', clearRecommendation);
 
 highlightSql();
 loadTables();

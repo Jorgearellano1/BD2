@@ -163,6 +163,15 @@ class VectorSqlTests(unittest.TestCase):
         self.assertFalse(output.success)
         self.assertIn('VECTOR', output.error)
 
+    def test_negative_numeric_literals(self):
+        output = self.run_sql(
+            'CREATE TABLE neg (id INT PRIMARY KEY, v FLOAT) USING HEAP;'
+            'INSERT INTO neg VALUES (1, -12.5);'
+            'SELECT id FROM neg WHERE v >= -13.0;'
+        )
+        self.assertTrue(output.success, output.error)
+        self.assertEqual(self.last(output)[0].rows, [(1,)])
+
     def test_csv_import_with_vector_column(self):
         handle = tempfile.NamedTemporaryFile(
             'w', suffix='.csv', delete=False, encoding='utf-8',
@@ -231,6 +240,58 @@ WHERE bovw MATCH 'v0001 v0002' ORDER BY score DESC LIMIT 2;
         result, _ = self.last(output)
         self.assertEqual(result.columns, ['id', 'score'])
         self.assertEqual([row[0] for row in result.rows], [1, 2])
+
+
+class RecommenderApiTests(unittest.TestCase):
+    def test_text_recommendation_with_filters(self):
+        tmp = tempfile.mkdtemp(prefix='bd2rec_api_')
+
+        try:
+            os.environ['STORAGE_DIR'] = tmp
+            from fastapi.testclient import TestClient
+            import api.main as api_main
+            api_main = importlib.reload(api_main)
+            client = TestClient(api_main.app)
+
+            setup = """
+CREATE TABLE vehiculos (id INT PRIMARY KEY, titulo CHAR(150), descripcion CHAR(1000), precio FLOAT, categoria CHAR(30), tienda CHAR(80), ciudad CHAR(80), estado CHAR(10), latitud FLOAT, longitud FLOAT, imagen CHAR(30), palabras CHAR(1000), embedding VECTOR(4)) USING HEAP;
+INSERT INTO vehiculos VALUES (1, 'Red sports car', 'Red sports car with low mileage and manual transmission', 25000, 'Coupe', 'Dealer A', 'San Francisco', 'CA', 37.77, -122.42, 'a.jpg', 'v0001 v0002', '[1,0,0,0]');
+INSERT INTO vehiculos VALUES (2, 'Blue family SUV', 'Blue family SUV automatic with third row', 30000, 'SUV', 'Dealer B', 'Los Angeles', 'CA', 34.05, -118.24, 'b.jpg', 'v0003 v0004', '[0,1,0,0]');
+INSERT INTO vehiculos VALUES (3, 'Red pickup truck', 'Red pickup truck diesel four wheel drive', 20000, 'Pickup', 'Dealer C', 'Houston', 'TX', 29.76, -95.37, 'c.jpg', 'v0001 v0005', '[0,0,1,0]');
+CREATE INDEX idx_veh_desc ON vehiculos(descripcion) USING INVERTED WITH (language = 'english', stemming = 'true', stoplist = 'true');
+CREATE INDEX idx_veh_vec ON vehiculos(embedding) USING IVF WITH (lists = 2, metric = 'COSINE');
+"""
+            response = client.post('/api/query', json={'sql': setup})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertTrue(response.json()['success'], response.text)
+
+            response = client.post('/api/recommend', json={
+                'description': 'red sports car',
+                'max_price': 26000,
+                'lat': 37.77,
+                'lon': -122.42,
+                'radius_km': 100,
+                'limit': 5,
+            })
+            self.assertEqual(response.status_code, 200, response.text)
+            data = response.json()
+            self.assertTrue(data['success'])
+            self.assertEqual(data['mode'], 'text')
+            self.assertEqual(
+                [item['id'] for item in data['text']['results']], [1],
+            )
+            self.assertEqual(data['text']['results'][0]['imagen_url'], '/media/a.jpg')
+            self.assertEqual(data['text']['results'][0]['distancia_km'], 0.0)
+
+            response = client.get('/api/recommend/samples?limit=3')
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(len(response.json()['products']), 3)
+
+            response = client.post('/api/recommend', json={})
+            self.assertEqual(response.status_code, 400)
+        finally:
+            os.environ.pop('STORAGE_DIR', None)
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 class VectorApiTests(unittest.TestCase):
