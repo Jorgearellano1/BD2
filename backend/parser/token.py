@@ -36,6 +36,7 @@ class TokenType(Enum):
 
     BTREE = auto()
     HASH = auto()
+    RTREE = auto()
 
     AND = auto()
     OR = auto()
@@ -69,7 +70,7 @@ class TokenType(Enum):
     GT = auto()
     GE = auto()
 
-    # Control
+    # Special tokens
     EOF = auto()
     ERR = auto()
 
