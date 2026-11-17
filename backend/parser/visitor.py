@@ -14,6 +14,8 @@ from .ast import (
     LiteralExp,
     IdExp,
     MatchExp,
+    WithinRadiusExp,
+    KnnExp,
 )
 
 
@@ -71,6 +73,18 @@ class Visitor(ABC, Generic[S, E]):
         """MATCH textual. No es abstracto para no romper visitors previos."""
         raise NotImplementedError(
             f"{type(self).__name__} no soporta MATCH"
+        )
+
+    def visit_within_radius_exp(self, node: WithinRadiusExp) -> E:
+        """WITHIN_RADIUS opcional."""
+        raise NotImplementedError(
+            f"{type(self).__name__} no soporta WITHIN_RADIUS"
+        )
+
+    def visit_knn_exp(self, node: KnnExp) -> E:
+        """KNN opcional."""
+        raise NotImplementedError(
+            f"{type(self).__name__} no soporta KNN"
         )
 
     def visit_set(self, node) -> S:

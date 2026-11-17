@@ -138,6 +138,38 @@ Un lock serializa las peticiones para no mutar el catálogo ni los archivos a la
 vez. El catálogo y los datos quedan en `storage/`; `PAGE_SIZE` (por defecto
 `4096`) configura el tamaño de página.
 
+## Búsqueda espacial
+
+El R-Tree se crea sobre dos columnas numéricas:
+
+```sql
+CREATE INDEX idx_geo ON vehiculos(latitud, longitud) USING RTREE;
+```
+
+Para un radio exacto:
+
+```sql
+SELECT id, titulo, latitud, longitud
+FROM vehiculos
+WHERE WITHIN_RADIUS(latitud, longitud, 35.6144, -88.5195, 300)
+LIMIT 20;
+```
+
+El planificador usa el R-Tree con el MBR del círculo y el filtro Haversine
+descarta las esquinas.
+
+Para los k vecinos más cercanos:
+
+```sql
+SELECT id, titulo, latitud, longitud
+FROM vehiculos
+WHERE KNN(latitud, longitud, 35.6144, -88.5195, 5);
+```
+
+`KNN` usa `nearest_neighbors` del R-Tree y requiere un índice sobre las dos
+columnas indicadas. El cliente web dibuja los resultados en el mapa cuando la
+consulta usa R-Tree y el `SELECT` incluye latitud y longitud.
+
 ## Búsqueda vectorial
 
 El tipo `VECTOR(D)` guarda `D` floats dentro del registro. Los índices IVF se

@@ -2,13 +2,18 @@ const byId = (id) => document.getElementById(id);
 const format = new Intl.NumberFormat('es-PE');
 const decimal = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 3 });
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const state = { tables: [], selected: null, result: null, busy: false, connected: false };
+const state = { tables: [], selected: null, result: null, busy: false, connected: false, resultTab: 'results' };
 const editor = byId('sql');
 const highlight = byId('highlight');
+let sqlMap = null;
+let sqlMapLayer = null;
+let sqlMapPoints = [];
 const EXAMPLES = [
   ['P1 · Rango por clave', 'SELECT * FROM estudiantes\nWHERE Student_ID >= 100 AND Student_ID <= 150;'],
   ['P2 · Espacial: crear tabla y R-Tree', "CREATE TABLE cities (\n  id INT PRIMARY KEY, name CHAR(100), state_id INT, state_code CHAR(10),\n  state_name CHAR(100), country_id INT, country_code CHAR(10), country_name CHAR(100),\n  latitude FLOAT, longitude FLOAT, wikiDataId CHAR(30)\n) USING HEAP FROM CSV ('data/datasets/cities.csv');\nCREATE INDEX idx_cities_spatial ON cities (latitude, longitude) USING RTREE;"],
   ['P2 · Espacial: consulta por rectángulo', 'SELECT * FROM cities\nWHERE latitude >= 25 AND latitude <= 35\n  AND longitude >= 60 AND longitude <= 75;'],
+  ['P2 · Espacial: radio exacto (R-Tree)', "SELECT id, titulo, precio, latitud, longitud\nFROM vehiculos\nWHERE WITHIN_RADIUS(latitud, longitud, 35.6144, -88.5195, 300)\nLIMIT 20;"],
+  ['P2 · Espacial: k-NN (R-Tree)', "SELECT id, titulo, precio, latitud, longitud\nFROM vehiculos\nWHERE KNN(latitud, longitud, 35.6144, -88.5195, 5);"],
   ['P2 · Texto: crear tabla e índice invertido', "CREATE TABLE docs (id INT PRIMARY KEY, libro INT, titulo CHAR(80), cuerpo CHAR(1000))\n  FROM CSV ('data/datasets/corpus_gutenberg_es.csv');\nCREATE INDEX idx_cuerpo ON docs (cuerpo) USING INVERTED WITH (scoring = 'TFIDF_COSINE');"],
   ['P2 · Texto: consulta booleana', "SELECT id, titulo FROM docs\nWHERE cuerpo MATCH 'caballero AND andante AND NOT escudero';"],
   ['P2 · Texto: Top-K por coseno', "SELECT id, titulo, COSINE_SCORE() AS relevancia FROM docs\nWHERE cuerpo MATCH 'amor guerra'\nORDER BY relevancia DESC LIMIT 10;"],
@@ -204,7 +209,128 @@ function clearMetrics() {
   byId('writes-bar').style.width = '0%';
 }
 
-function renderResult(data) {
+function geoColumns(columns) {
+  const names = columns.map((name) => String(name).toLowerCase());
+  const latIndex = names.findIndex((name) => ['latitud', 'latitude', 'lat'].includes(name));
+  const lonIndex = names.findIndex((name) => ['longitud', 'longitude', 'lon', 'lng'].includes(name));
+  return latIndex >= 0 && lonIndex >= 0 ? { latIndex, lonIndex } : null;
+}
+
+function explainUsesRTree(data) {
+  const entries = data.explains?.length ? data.explains : [{ explain: data.explain }];
+  const visit = (node) => {
+    if (!node) return false;
+    if ((node.operations || []).some((operation) => String(operation.resource_type).toLowerCase() === 'rtree')) {
+      return true;
+    }
+    return (node.children || []).some(visit);
+  };
+  return entries.some((entry) => visit(entry.explain));
+}
+
+function hasGeoPoints(data, geo) {
+  return (data.rows || []).some((row) => (
+    Number.isFinite(Number(row[geo.latIndex]))
+    && Number.isFinite(Number(row[geo.lonIndex]))
+  ));
+}
+
+function ensureSqlMap() {
+  if (sqlMap) return sqlMap;
+  if (typeof L === 'undefined') return null;
+
+  sqlMap = L.map('sql-map', { zoomControl: true }).setView([0, 0], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(sqlMap);
+  sqlMapLayer = L.layerGroup().addTo(sqlMap);
+  return sqlMap;
+}
+
+function sqlPopup(columns, row, geo) {
+  const box = document.createElement('div');
+  box.className = 'map-popup';
+  const skip = new Set([geo.latIndex, geo.lonIndex]);
+  const titleIndex = columns.findIndex((name, index) => (
+    index > 0 && !skip.has(index) && typeof row[index] === 'string' && row[index].trim()
+  ));
+  const fallback = columns.findIndex((name, index) => (
+    !skip.has(index) && typeof row[index] === 'string' && row[index].trim()
+  ));
+  const heading = titleIndex >= 0 ? titleIndex : fallback;
+
+  const title = document.createElement('strong');
+  title.textContent = heading >= 0
+    ? String(row[heading]).slice(0, 90)
+    : `Registro ${row[0] ?? ''}`;
+  box.append(title);
+
+  let lines = 0;
+  for (let index = 0; index < columns.length && lines < 6; index += 1) {
+    if (skip.has(index) || index === heading) continue;
+    const value = row[index];
+    if (value == null || value === '') continue;
+    const line = document.createElement('div');
+    line.className = 'map-meta';
+    line.textContent = `${columns[index]}: ${String(value).slice(0, 80)}`;
+    box.append(line);
+    lines += 1;
+  }
+
+  return box;
+}
+
+function fitSqlMap() {
+  if (!sqlMap) return;
+
+  if (sqlMapPoints.length) {
+    sqlMap.fitBounds(L.latLngBounds(sqlMapPoints).pad(0.15), { maxZoom: 12 });
+  } else {
+    sqlMap.setView([0, 0], 2);
+  }
+}
+
+function renderSqlMap(data, geo, rtree) {
+  const map = ensureSqlMap();
+  if (!map) return;
+
+  sqlMapLayer.clearLayers();
+  sqlMapPoints = [];
+
+  for (const row of data.rows) {
+    const lat = Number(row[geo.latIndex]);
+    const lon = Number(row[geo.lonIndex]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+    L.circleMarker([lat, lon], {
+      radius: 7,
+      color: '#2563eb',
+      weight: 2,
+      fillColor: '#2563eb',
+      fillOpacity: 0.75,
+    }).bindPopup(sqlPopup(data.columns, row, geo)).addTo(sqlMapLayer);
+    sqlMapPoints.push([lat, lon]);
+  }
+
+  const count = sqlMapPoints.length;
+  byId('sql-map-hint').textContent = `${rtree ? 'R-Tree' : 'Resultados'} · ${format.format(count)} punto${count === 1 ? '' : 's'}`;
+
+  if (!byId('map-view').hidden) {
+    setTimeout(() => {
+      map.invalidateSize();
+      fitSqlMap();
+    }, 30);
+  }
+}
+
+function clearSqlMap() {
+  sqlMapPoints = [];
+  if (sqlMapLayer) sqlMapLayer.clearLayers();
+  byId('sql-map-hint').textContent = '';
+}
+
+function renderResult(data, options = {}) {
   state.result = data;
   const area = byId('result-area');
   area.replaceChildren();
@@ -253,6 +379,33 @@ function renderResult(data) {
   const maximum = Math.max(metrics.disk_reads, metrics.disk_writes, 1);
   byId('reads-bar').style.width = `${metrics.disk_reads / maximum * 100}%`;
   byId('writes-bar').style.width = `${metrics.disk_writes / maximum * 100}%`;
+
+  const geo = geoColumns(data.columns || []);
+  const rtree = explainUsesRTree(data);
+  const canMap = Boolean(geo && hasGeoPoints(data, geo));
+  const mapTab = byId('map-tab');
+  const hint = byId('result-map-hint');
+
+  mapTab.hidden = !canMap;
+  hint.hidden = !(rtree && !canMap);
+
+  if (rtree && !canMap) {
+    hint.textContent = 'La consulta usó R-Tree. Incluye latitud y longitud en el SELECT para ver el mapa.';
+  }
+
+  if (canMap) {
+    renderSqlMap(data, geo, rtree);
+
+    if (options.autoMap && rtree) {
+      selectResultTab('map');
+    } else if (state.resultTab === 'map') {
+      selectResultTab('map');
+    }
+  } else {
+    clearSqlMap();
+    if (state.resultTab === 'map') selectResultTab('results');
+  }
+
   area.scrollTop = 0;
   controls();
 }
@@ -266,6 +419,10 @@ function showError(error) {
   byId('record-count').textContent = '—';
   byId('page-info').textContent = 'Sin resultados';
   byId('query-state').textContent = 'No se completó la operación.';
+  byId('map-tab').hidden = true;
+  byId('result-map-hint').hidden = true;
+  clearSqlMap();
+  if (state.resultTab === 'map') selectResultTab('results');
   clearMetrics();
 }
 
@@ -278,7 +435,7 @@ async function run(path, body, message) {
   try {
     const data = await request(path, body);
     if (data.success === false && !data.statements) throw new Error(data.error || 'No se pudo ejecutar la consulta.');
-    renderResult(data);
+    renderResult(data, { autoMap: true });
     byId('query-state').textContent = data.success === false ? 'El script se detuvo; se muestran los últimos resultados disponibles.' : 'Operación completada.';
     if (data.table) state.selected = data.table;
   } catch (error) {
@@ -305,23 +462,45 @@ async function changePage(direction) {
   }
 }
 
+const RESULT_TABS = ['results', 'explain', 'map'];
+
 function selectResultTab(name) {
-  for (const tab of ['results', 'explain']) {
+  if (byId(`${name}-tab`).hidden) name = 'results';
+
+  for (const tab of RESULT_TABS) {
     const active = tab === name;
     byId(`${tab}-tab`).setAttribute('aria-selected', String(active));
     byId(`${tab}-tab`).tabIndex = active ? 0 : -1;
     byId(`${tab}-view`).hidden = !active;
   }
-  byId('record-count').hidden = name !== 'results';
+
+  state.resultTab = name;
+  byId('record-count').hidden = name === 'explain';
+
+  if (name === 'map' && sqlMap) {
+    setTimeout(() => {
+      sqlMap.invalidateSize();
+      fitSqlMap();
+    }, 0);
+  }
 }
 
-for (const name of ['results', 'explain']) {
+for (const name of RESULT_TABS) {
   const tab = byId(`${name}-tab`);
   tab.addEventListener('click', () => selectResultTab(name));
   tab.addEventListener('keydown', (event) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
-    const next = event.key === 'Home' ? 'results' : event.key === 'End' ? 'explain' : name === 'results' ? 'explain' : 'results';
+    const visible = RESULT_TABS.filter((item) => !byId(`${item}-tab`).hidden);
+    if (!visible.length) return;
+    let next;
+    if (event.key === 'Home') next = visible[0];
+    else if (event.key === 'End') next = visible[visible.length - 1];
+    else {
+      const current = visible.indexOf(name);
+      const step = event.key === 'ArrowRight' ? 1 : -1;
+      next = visible[(current + step + visible.length) % visible.length];
+    }
     selectResultTab(next);
     byId(`${next}-tab`).focus();
   });
@@ -432,6 +611,7 @@ let recImageData = null;
 let recBusy = false;
 let recMap = null;
 let recMapLayers = null;
+let recMapPoints = [];
 
 function selectMainView(name) {
   for (const view of ['sql', 'recommend']) {
@@ -442,7 +622,10 @@ function selectMainView(name) {
   }
   history.replaceState(null, '', name === 'recommend' ? '#recomendador' : '#cliente-sql');
   if (name === 'recommend' && recMap) {
-    setTimeout(() => recMap.invalidateSize(), 0);
+    setTimeout(() => {
+      recMap.invalidateSize();
+      if (!byId('rec-map-view').hidden) fitRecommendationMap();
+    }, 0);
   }
 }
 
@@ -462,6 +645,39 @@ selectMainView(location.hash === '#recomendador' ? 'recommend' : 'sql');
 window.addEventListener('hashchange', () => {
   selectMainView(location.hash === '#recomendador' ? 'recommend' : 'sql');
 });
+
+function selectRecommendationView(name) {
+  if (name === 'rec-map' && byId('rec-map-tab').disabled) name = 'rec-results';
+
+  for (const view of ['rec-results', 'rec-map']) {
+    const active = view === name;
+    byId(`${view}-tab`).setAttribute('aria-selected', String(active));
+    byId(`${view}-tab`).tabIndex = active ? 0 : -1;
+    byId(`${view}-view`).hidden = !active;
+  }
+
+  if (name === 'rec-map' && recMap) {
+    setTimeout(() => {
+      recMap.invalidateSize();
+      fitRecommendationMap();
+    }, 0);
+  }
+}
+
+for (const name of ['rec-results', 'rec-map']) {
+  const tab = byId(`${name}-tab`);
+  tab.addEventListener('click', () => selectRecommendationView(name));
+  tab.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    let next = name === 'rec-results' ? 'rec-map' : 'rec-results';
+    if (event.key === 'Home') next = 'rec-results';
+    if (event.key === 'End') next = 'rec-map';
+    if (byId(`${next}-tab`).disabled) return;
+    selectRecommendationView(next);
+    byId(`${next}-tab`).focus();
+  });
+}
 
 byId('rec-image').addEventListener('change', (event) => {
   const file = event.target.files?.[0];
@@ -507,10 +723,12 @@ function clearRecommendation() {
   byId('rec-bovw-panel').hidden = false;
   byId('rec-emb-panel').hidden = false;
   byId('rec-text-panel').hidden = true;
-  byId('rec-map-panel').hidden = true;
+  byId('rec-map-tab').disabled = true;
+  recMapPoints = [];
   if (recMapLayers) {
     for (const layer of Object.values(recMapLayers)) layer.clearLayers();
   }
+  selectRecommendationView('rec-results');
   syncLocationControls();
 }
 
@@ -663,26 +881,41 @@ function addMapPoint(layer, item, color, scoreLabel) {
   return [lat, lon];
 }
 
+function fitRecommendationMap() {
+  if (!recMap) return;
+
+  if (recMapPoints.length) {
+    recMap.fitBounds(L.latLngBounds(recMapPoints).pad(0.15), { maxZoom: 12 });
+  } else {
+    recMap.setView([0, 0], 2);
+  }
+}
+
 function renderRecommendationMap(data) {
-  const panel = byId('rec-map-panel');
+  const mapTab = byId('rec-map-tab');
   const bovw = data.bovw?.results || [];
   const embeddings = data.embeddings?.results || [];
   const text = data.text?.results || [];
   const hasData = Boolean(data.map?.center) || bovw.length || embeddings.length || text.length;
 
   if (!hasData) {
-    panel.hidden = true;
+    mapTab.disabled = true;
+    recMapPoints = [];
+    if (!byId('rec-map-view').hidden) selectRecommendationView('rec-results');
+    if (recMapLayers) {
+      for (const layer of Object.values(recMapLayers)) layer.clearLayers();
+    }
     return;
   }
 
-  panel.hidden = false;
   const map = ensureRecommendationMap();
 
   if (!map) {
-    panel.hidden = true;
+    mapTab.disabled = true;
     return;
   }
 
+  mapTab.disabled = false;
   for (const layer of Object.values(recMapLayers)) layer.clearLayers();
 
   const points = [];
@@ -737,14 +970,14 @@ function renderRecommendationMap(data) {
     if (point) points.push(point);
   }
 
-  setTimeout(() => {
-    map.invalidateSize();
-    if (points.length) {
-      map.fitBounds(L.latLngBounds(points).pad(0.15), { maxZoom: 12 });
-    } else {
-      map.setView([0, 0], 2);
-    }
-  }, 30);
+  recMapPoints = points;
+
+  if (!byId('rec-map-view').hidden) {
+    setTimeout(() => {
+      map.invalidateSize();
+      fitRecommendationMap();
+    }, 30);
+  }
 }
 
 function renderRecommendation(data, payload) {

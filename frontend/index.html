@@ -36,13 +36,15 @@ WHERE Student_ID &gt;= 100 AND Student_ID &lt;= 150;</textarea>
       <div class="editor-resizer" id="editor-resizer" role="separator" aria-orientation="horizontal" aria-label="Altura del editor SQL" aria-valuemin="190" aria-valuenow="245" tabindex="0" title="Arrastra para ajustar la altura del editor"></div>
     </section>
     <section class="panel results-panel" aria-label="Resultados y plan de ejecución">
-      <div class="panel-header"><div role="tablist" aria-label="Vista de consulta" class="result-tabs"><button id="results-tab" type="button" role="tab" aria-selected="true" aria-controls="results-view">Resultados</button><button id="explain-tab" type="button" role="tab" aria-selected="false" aria-controls="explain-view" tabindex="-1">Explain</button></div><span class="record-count" id="record-count">—</span></div>
+      <div class="panel-header"><div role="tablist" aria-label="Vista de consulta" class="result-tabs"><button id="results-tab" type="button" role="tab" aria-selected="true" aria-controls="results-view">Resultados</button><button id="explain-tab" type="button" role="tab" aria-selected="false" aria-controls="explain-view" tabindex="-1">Explain</button><button id="map-tab" type="button" role="tab" aria-selected="false" aria-controls="map-view" tabindex="-1" hidden>Mapa</button></div><span class="record-count" id="record-count">—</span></div>
       <div class="result-message" id="result-message" role="status" hidden></div>
+      <p class="map-hint" id="result-map-hint" hidden></p>
       <div id="results-view" role="tabpanel" aria-labelledby="results-tab" tabindex="0">
       <div class="result-area" id="result-area"></div>
       <div class="pagination"><span id="page-info">Sin resultados</span><div><button id="previous" type="button" disabled>Anterior</button><button id="next" type="button" disabled>Siguiente</button></div></div>
       </div>
       <div id="explain-view" role="tabpanel" aria-labelledby="explain-tab" tabindex="0" hidden><pre id="explain">Ejecuta una consulta para ver su árbol de ejecución.</pre></div>
+      <div id="map-view" role="tabpanel" aria-labelledby="map-tab" tabindex="0" hidden><p class="map-hint" id="sql-map-hint"></p><div id="sql-map"></div></div>
     </section>
     <section class="panel metrics-panel" aria-labelledby="metrics-heading">
       <div class="panel-header"><h2 id="metrics-heading">Plan y métricas</h2></div>
@@ -100,40 +102,48 @@ WHERE Student_ID &gt;= 100 AND Student_ID &lt;= 150;</textarea>
     </section>
     <section class="recommend-results" aria-label="Recomendaciones">
       <div class="rec-query" id="rec-query" hidden></div>
-      <div class="rec-columns">
-        <section class="panel rec-panel" id="rec-bovw-panel">
-          <h3>BoVW · SIFT + índice invertido</h3>
+      <div class="rec-view-tabs" role="tablist" aria-label="Vista del recomendador">
+        <button id="rec-results-tab" type="button" role="tab" aria-selected="true" aria-controls="rec-results-view">Resultados</button>
+        <button id="rec-map-tab" type="button" role="tab" aria-selected="false" aria-controls="rec-map-view" tabindex="-1" disabled>Mapa</button>
+      </div>
+      <div id="rec-results-view" role="tabpanel" aria-labelledby="rec-results-tab">
+        <div class="rec-columns">
+          <section class="panel rec-panel" id="rec-bovw-panel">
+            <h3>BoVW · SIFT + índice invertido</h3>
+            <p class="rec-hint">Similitud coseno: mayor = más parecido.</p>
+            <div class="rec-results" id="rec-bovw"></div>
+            <p class="rec-metrics" id="rec-bovw-metrics"></p>
+          </section>
+          <section class="panel rec-panel" id="rec-emb-panel">
+            <h3>Embeddings · ResNet-18 + IVF</h3>
+            <p class="rec-hint">Distancia coseno: menor = más parecido (0 = idéntico).</p>
+            <div class="rec-results" id="rec-emb"></div>
+            <p class="rec-metrics" id="rec-emb-metrics"></p>
+          </section>
+        </div>
+        <section class="panel rec-panel" id="rec-text-panel" hidden>
+          <h3>Texto · índice invertido</h3>
           <p class="rec-hint">Similitud coseno: mayor = más parecido.</p>
-          <div class="rec-results" id="rec-bovw"></div>
-          <p class="rec-metrics" id="rec-bovw-metrics"></p>
+          <div class="rec-results" id="rec-text-results"></div>
+          <p class="rec-metrics" id="rec-text-metrics"></p>
         </section>
-        <section class="panel rec-panel" id="rec-emb-panel">
-          <h3>Embeddings · ResNet-18 + IVF</h3>
-          <p class="rec-hint">Distancia coseno: menor = más parecido (0 = idéntico).</p>
-          <div class="rec-results" id="rec-emb"></div>
-          <p class="rec-metrics" id="rec-emb-metrics"></p>
+        <p class="rec-comparison" id="rec-comparison"></p>
+      </div>
+      <div id="rec-map-view" role="tabpanel" aria-labelledby="rec-map-tab" hidden>
+        <section class="panel rec-panel rec-map-panel" id="rec-map-panel">
+          <div class="rec-map-head">
+            <h3>Mapa · resultados y radio</h3>
+            <div class="rec-map-legend" aria-label="Leyenda del mapa">
+              <span><i class="dot-bovw"></i>BoVW</span>
+              <span><i class="dot-emb"></i>Embeddings</span>
+              <span><i class="dot-text"></i>Texto</span>
+              <span><i class="dot-query"></i>Consulta</span>
+              <span><i class="dot-mbr"></i>MBR</span>
+            </div>
+          </div>
+          <div id="rec-map"></div>
         </section>
       </div>
-      <section class="panel rec-panel" id="rec-text-panel" hidden>
-        <h3>Texto · índice invertido</h3>
-        <p class="rec-hint">Similitud coseno: mayor = más parecido.</p>
-        <div class="rec-results" id="rec-text-results"></div>
-        <p class="rec-metrics" id="rec-text-metrics"></p>
-      </section>
-      <section class="panel rec-panel rec-map-panel" id="rec-map-panel" hidden>
-        <div class="rec-map-head">
-          <h3>Mapa · resultados y radio</h3>
-          <div class="rec-map-legend" aria-label="Leyenda del mapa">
-            <span><i class="dot-bovw"></i>BoVW</span>
-            <span><i class="dot-emb"></i>Embeddings</span>
-            <span><i class="dot-text"></i>Texto</span>
-            <span><i class="dot-query"></i>Consulta</span>
-            <span><i class="dot-mbr"></i>MBR</span>
-          </div>
-        </div>
-        <div id="rec-map"></div>
-      </section>
-      <p class="rec-comparison" id="rec-comparison"></p>
     </section>
   </main>
 </body>

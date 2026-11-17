@@ -188,6 +188,8 @@ class IndexScanPlan(PlanNode):
     index: str
     index_kind: IndexKind
     key: Key | MBR
+    knn_center: tuple[float, float] | None = None
+    knn_k: int | None = None
 
     def accept(self, visitor: PlanVisitor[R]) -> R:
         return visitor.visit_index_scan(self)

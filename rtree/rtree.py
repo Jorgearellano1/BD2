@@ -1,3 +1,4 @@
+import heapq
 import os
 import struct
 from rtree.rtreeNode import MBR, LeafEntry, InternalEntry, RTreeNode

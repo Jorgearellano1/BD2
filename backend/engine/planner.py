@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable, Sequence
 
@@ -20,6 +21,9 @@ from parser.ast import (
     LiteralExp,
     IdExp,
     MatchExp,
+    WithinRadiusExp,
+    KnnExp,
+    Exp,
     ColumnDef,
     StorageType,
     IndexType,
@@ -34,6 +38,7 @@ from engine.conditions import (
     Expression,
     Condition,
     LogicalExpression,
+    RadiusCondition,
     ComparisonOperator,
     LogicalOperator,
 )
@@ -240,6 +245,12 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
         return AddUniquePlan(table=node.table, column=node.column,)
 
     def visit_select(self, node: SelectStm) -> PlanNode:
+        if node.where is not None:
+            node.where = self._expand_spatial_radius(node.where)
+            knn, rest = self._split_knn(node.where)
+            if knn is not None:
+                return self._build_knn_select(node, knn, rest)
+
         if node.where is not None and self._find_match(node.where) is not None:
             return self._build_text_select(node)
 
@@ -280,6 +291,140 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
 
         if node.columns is not None:
             plan = ProjectPlan(columns=node.columns, child=plan,)
+
+        return plan
+
+    def _expand_spatial_radius(self, expression: Exp) -> Exp:
+        if isinstance(expression, WithinRadiusExp):
+            delta_lat = expression.radius_km / 111.0
+            delta_lon = expression.radius_km / (
+                111.0 * max(0.1, math.cos(math.radians(expression.center_lat)))
+            )
+
+            ranges = BinaryExp(
+                IdExp(expression.latitude),
+                LiteralExp(expression.center_lat - delta_lat),
+                BinaryOp.GE,
+            )
+            ranges = BinaryExp(
+                ranges,
+                BinaryExp(
+                    IdExp(expression.latitude),
+                    LiteralExp(expression.center_lat + delta_lat),
+                    BinaryOp.LE,
+                ),
+                BinaryOp.AND,
+            )
+            ranges = BinaryExp(
+                ranges,
+                BinaryExp(
+                    IdExp(expression.longitude),
+                    LiteralExp(expression.center_lon - delta_lon),
+                    BinaryOp.GE,
+                ),
+                BinaryOp.AND,
+            )
+            ranges = BinaryExp(
+                ranges,
+                BinaryExp(
+                    IdExp(expression.longitude),
+                    LiteralExp(expression.center_lon + delta_lon),
+                    BinaryOp.LE,
+                ),
+                BinaryOp.AND,
+            )
+
+            return BinaryExp(ranges, expression, BinaryOp.AND)
+
+        if isinstance(expression, BinaryExp) and expression.op is BinaryOp.AND:
+            return BinaryExp(
+                self._expand_spatial_radius(expression.left),
+                self._expand_spatial_radius(expression.right),
+                BinaryOp.AND,
+            )
+
+        return expression
+
+    def _split_knn(self, expression: Exp) -> tuple[KnnExp | None, Exp | None]:
+        if isinstance(expression, KnnExp):
+            return expression, None
+
+        if isinstance(expression, BinaryExp) and expression.op is BinaryOp.AND:
+            left_knn, left_rest = self._split_knn(expression.left)
+            right_knn, right_rest = self._split_knn(expression.right)
+
+            if left_knn is not None and right_knn is not None:
+                raise PlannerError("Solo se admite un KNN por consulta")
+
+            rest_parts = [
+                part for part in (left_rest, right_rest) if part is not None
+            ]
+            residual = None
+            for part in rest_parts:
+                residual = part if residual is None else BinaryExp(
+                    residual, part, BinaryOp.AND,
+                )
+
+            return left_knn or right_knn, residual
+
+        return None, expression
+
+    def _build_knn_select(
+        self,
+        node: SelectStm,
+        knn: KnnExp,
+        rest: Exp | None,
+    ) -> PlanNode:
+        if self._is_sequential_table(node.table):
+            raise PlannerError("KNN requiere una tabla HEAP con indice R-Tree")
+
+        index = self.catalog.find_index(
+            node.table,
+            (knn.latitude, knn.longitude),
+            IndexKind.RTREE,
+        )
+
+        if index is None:
+            raise PlannerError(
+                "KNN requiere un indice R-Tree sobre "
+                f"({knn.latitude}, {knn.longitude})"
+            )
+
+        if knn.k <= 0:
+            raise PlannerError("KNN requiere k > 0")
+
+        plan = IndexScanPlan(
+            table=node.table,
+            index=index.name,
+            index_kind=IndexKind.RTREE,
+            key=MBR(
+                knn.center_lon,
+                knn.center_lat,
+                knn.center_lon,
+                knn.center_lat,
+            ),
+            knn_center=(knn.center_lon, knn.center_lat),
+            knn_k=knn.k,
+        )
+        plan = self._records_from_access(node.table, plan)
+
+        if rest is not None:
+            predicate = rest.accept(self)
+            if not (isinstance(predicate, _BooleanExpression) and predicate.value):
+                plan = FilterPlan(predicate=predicate, child=plan)
+
+        if node.order_by is not None:
+            plan = SortPlan(
+                column=node.order_by,
+                descending=node.order_desc,
+                child=plan,
+            )
+
+        if node.limit is not None:
+            plan = LimitPlan(limit=node.limit, child=plan)
+
+        if node.columns is not None:
+            plan = ProjectPlan(columns=node.columns, child=plan)
 
         return plan
 
@@ -629,6 +774,18 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
         return DeletePlan(table=node.table, child=plan,)
 
     # Expressions: AST -> conditions.py + constant folding
+
+    def visit_within_radius_exp(self, node: WithinRadiusExp) -> PlannerExpression:
+        return RadiusCondition(
+            latitude=node.latitude,
+            longitude=node.longitude,
+            center_lat=node.center_lat,
+            center_lon=node.center_lon,
+            radius_km=node.radius_km,
+        )
+
+    def visit_knn_exp(self, node: KnnExp) -> PlannerExpression:
+        raise PlannerError("KNN debe usarse en el WHERE de un SELECT con AND")
 
     def visit_binary_exp(self, node: BinaryExp) -> PlannerExpression:
         if node.op is BinaryOp.AND:

@@ -19,6 +19,8 @@ from .ast import (
     LiteralExp,
     IdExp,
     MatchExp,
+    WithinRadiusExp,
+    KnnExp,
     ColumnDef,
     DataType,
     StorageType,
@@ -631,6 +633,45 @@ class SemanticVisitor(Visitor[None, None]):
                 f"Error semantico: MATCH requiere una columna CHAR y "
                 f"'{node.column}' no lo es"
             )
+
+    def visit_within_radius_exp(self, node: WithinRadiusExp) -> None:
+        table = self._current_table
+        if table is None:
+            return
+
+        self._validate_spatial_columns(table, node.latitude, node.longitude)
+
+        if node.radius_km <= 0:
+            raise ValueError(
+                "Error semantico: WITHIN_RADIUS requiere un radio positivo"
+            )
+
+        if not -90 <= node.center_lat <= 90 or not -180 <= node.center_lon <= 180:
+            raise ValueError(
+                "Error semantico: WITHIN_RADIUS tiene un centro fuera de rango"
+            )
+
+    def visit_knn_exp(self, node: KnnExp) -> None:
+        table = self._current_table
+        if table is None:
+            return
+
+        self._validate_spatial_columns(table, node.latitude, node.longitude)
+
+        if node.k <= 0:
+            raise ValueError("Error semantico: KNN requiere k > 0")
+
+        if not -90 <= node.center_lat <= 90 or not -180 <= node.center_lon <= 180:
+            raise ValueError("Error semantico: KNN tiene un centro fuera de rango")
+
+    def _validate_spatial_columns(self, table, latitude: str, longitude: str) -> None:
+        for column in (latitude, longitude):
+            self._require_column(table, column)
+            if self._column_type(table, column) not in ('INT', 'FLOAT', 'DOUBLE'):
+                raise ValueError(
+                    f"Error semantico: la columna espacial '{column}' "
+                    f"debe ser numerica"
+                )
 
     def _validate_comparison(self, node: BinaryExp) -> None:
         left = node.left

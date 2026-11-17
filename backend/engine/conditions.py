@@ -1,6 +1,7 @@
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum
+import math
 
 from engine.metadata import Key, RawRecord, TableMetadata
 
@@ -47,6 +48,16 @@ class Condition(Expression):
     left: Operand
     operator: ComparisonOperator
     right: Operand
+
+
+@dataclass(frozen=True)
+class RadiusCondition(Expression):
+    """Filtro Haversine."""
+    latitude: str
+    longitude: str
+    center_lat: float
+    center_lon: float
+    radius_km: float
 
 
 @dataclass(frozen=True)
@@ -112,6 +123,19 @@ def evaluate_condition(
     raise ValueError(f"Operador de comparacion no soportado: {op!r}")
 
 
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius = 6371.0
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    a = (
+        math.sin(delta_phi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
+    )
+    return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
 def evaluate_expression(
     record: RawRecord,
     expression: Expression,
@@ -122,6 +146,20 @@ def evaluate_expression(
     """
     if isinstance(expression, Condition):
         return evaluate_condition(record, expression, table_meta)
+
+    if isinstance(expression, RadiusCondition):
+        try:
+            latitude = float(record[table_meta.col_index(expression.latitude)])
+            longitude = float(record[table_meta.col_index(expression.longitude)])
+        except (TypeError, ValueError, IndexError):
+            return False
+
+        return _haversine_km(
+            latitude,
+            longitude,
+            expression.center_lat,
+            expression.center_lon,
+        ) <= expression.radius_km
 
     if isinstance(expression, LogicalExpression):
         op       = expression.operator

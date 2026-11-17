@@ -37,6 +37,8 @@ class TokenType(Enum):
     BTREE = auto()
     HASH = auto()
     RTREE = auto()
+    WITHIN_RADIUS = auto()
+    KNN = auto()
 
     # Modulo textual
     INVERTED = auto()

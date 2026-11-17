@@ -10,6 +10,7 @@ from .token import Token, TokenType
 from .ast import Program, Stm, CreateIndexStm, IndexType, CreateTableStm, StorageType, ColumnDef, DataType, Exp, LiteralExp
 from .ast import BinaryOp, UnaryOp
 from .ast import BinaryExp, UnaryExp, LiteralExp, IdExp, MatchExp
+from .ast import WithinRadiusExp, KnnExp
 
 class Parser:
     def __init__(self, scanner: Scanner):
@@ -716,6 +717,12 @@ class Parser:
             self.match(TokenType.RPAREN)
             return expression
 
+        if self.check(TokenType.WITHIN_RADIUS):
+            return self.parse_within_radius()
+
+        if self.check(TokenType.KNN):
+            return self.parse_knn()
+
         left = self.parse_operand()
 
         # columna MATCH 'consulta'
@@ -732,6 +739,59 @@ class Parser:
         right = self.parse_operand()
 
         return BinaryExp(left, right, op)
+
+    def parse_within_radius(self) -> Exp:
+        self.match(TokenType.WITHIN_RADIUS)
+        self.match(TokenType.LPAREN)
+        latitude = self.match(TokenType.ID).text
+        self.match(TokenType.COMMA)
+        longitude = self.match(TokenType.ID).text
+        self.match(TokenType.COMMA)
+        center_lat = self._numeric_literal("WITHIN_RADIUS")
+        self.match(TokenType.COMMA)
+        center_lon = self._numeric_literal("WITHIN_RADIUS")
+        self.match(TokenType.COMMA)
+        radius = self._numeric_literal("WITHIN_RADIUS")
+        self.match(TokenType.RPAREN)
+        return WithinRadiusExp(latitude, longitude, center_lat, center_lon, radius)
+
+    def parse_knn(self) -> Exp:
+        self.match(TokenType.KNN)
+        self.match(TokenType.LPAREN)
+        latitude = self.match(TokenType.ID).text
+        self.match(TokenType.COMMA)
+        longitude = self.match(TokenType.ID).text
+        self.match(TokenType.COMMA)
+        center_lat = self._numeric_literal("KNN")
+        self.match(TokenType.COMMA)
+        center_lon = self._numeric_literal("KNN")
+        self.match(TokenType.COMMA)
+        k = self._integer_literal("KNN")
+        self.match(TokenType.RPAREN)
+        return KnnExp(latitude, longitude, center_lat, center_lon, k)
+
+    def _numeric_literal(self, context: str) -> float:
+        if self.check(TokenType.INT_LITERAL):
+            return float(self.match(TokenType.INT_LITERAL).text)
+
+        if self.check(TokenType.REAL_LITERAL):
+            return float(self.match(TokenType.REAL_LITERAL).text)
+
+        raise SyntaxError(
+            f"Error sintactico: {context} requiere un numero, "
+            f"pero se encontro {self.current.type.name} "
+            f"('{self.current.text}')"
+        )
+
+    def _integer_literal(self, context: str) -> int:
+        if self.check(TokenType.INT_LITERAL):
+            return int(self.match(TokenType.INT_LITERAL).text)
+
+        raise SyntaxError(
+            f"Error sintactico: {context} requiere un entero, "
+            f"pero se encontro {self.current.type.name} "
+            f"('{self.current.text}')"
+        )
 
     def parse_operand(self) -> Exp:
         if self.check(TokenType.ID):

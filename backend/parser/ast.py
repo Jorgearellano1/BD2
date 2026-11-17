@@ -105,6 +105,32 @@ class MatchExp(Exp):
 
 
 @dataclass
+class WithinRadiusExp(Exp):
+    """Predicado WITHIN_RADIUS."""
+    latitude: str
+    longitude: str
+    center_lat: float
+    center_lon: float
+    radius_km: float
+
+    def accept(self, visitor: Visitor[S, E]) -> E:
+        return visitor.visit_within_radius_exp(self)
+
+
+@dataclass
+class KnnExp(Exp):
+    """Predicado KNN."""
+    latitude: str
+    longitude: str
+    center_lat: float
+    center_lon: float
+    k: int
+
+    def accept(self, visitor: Visitor[S, E]) -> E:
+        return visitor.visit_knn_exp(self)
+
+
+@dataclass
 class VectorDistance:
     """Item de SELECT: columna <op> '[...]' AS alias."""
 

@@ -113,6 +113,10 @@ class Scanner:
                 return Token(TokenType.HASH, lexema)
             elif upper == "RTREE":
                 return Token(TokenType.RTREE, lexema)
+            elif upper == "WITHIN_RADIUS":
+                return Token(TokenType.WITHIN_RADIUS, lexema)
+            elif upper == "KNN":
+                return Token(TokenType.KNN, lexema)
             elif upper in _TEXT_KEYWORDS:
                 return Token(_TEXT_KEYWORDS[upper], lexema)
             elif upper == "AND":

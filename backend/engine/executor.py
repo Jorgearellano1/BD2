@@ -404,12 +404,21 @@ class Executor(PlanVisitor[ExecutionValue]):
 
         def body() -> ExecutionValue:
             if node.index_kind is IndexKind.RTREE:
-                if not isinstance(node.key, MBR):
-                    raise ExecutorError(
-                        "La búsqueda R-Tree requiere un MBR como consulta."
-                    )
+                if node.knn_k is not None and node.knn_center is not None:
+                    x, y = node.knn_center
+                    rids = [
+                        rid
+                        for rid, _ in index.nearest_neighbors(
+                            x, y, node.knn_k,
+                        )
+                    ]
+                else:
+                    if not isinstance(node.key, MBR):
+                        raise ExecutorError(
+                            "La búsqueda R-Tree requiere un MBR como consulta."
+                        )
 
-                rids = index.search_intersects(node.key)
+                    rids = index.search_intersects(node.key)
 
             else:
                 rids = index.search_all(node.key)
