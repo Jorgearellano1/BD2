@@ -1,0 +1,55 @@
+{
+  "experiment": "audio",
+  "profile": "quick",
+  "dataset": {
+    "clips": 24,
+    "classes": [
+      "tono220",
+      "tono440",
+      "tono880",
+      "chirp",
+      "bitono",
+      "ruido"
+    ],
+    "duration_s": 0.4,
+    "sample_rate": 16000
+  },
+  "parameters": {
+    "words": 12,
+    "iterations": 4,
+    "clips_per_class": 4,
+    "seed": 42
+  },
+  "times_ms": {
+    "mfcc": 986.72,
+    "codebook": 25.89,
+    "histograms": 5.1,
+    "inverted_index": 675.58
+  },
+  "summary": [
+    {
+      "method": "BoAW",
+      "precision@5": 0.8,
+      "precision@5_std": 0.0,
+      "latency_ms": 1.636,
+      "latency_ms_std": 0.207,
+      "reads": 5.83
+    },
+    {
+      "method": "DTW exacto",
+      "precision@5": 0.8,
+      "precision@5_std": 0.0,
+      "latency_ms": 26.18,
+      "latency_ms_std": 1.032,
+      "reads": 0
+    },
+    {
+      "method": "DTW LB_Keogh",
+      "precision@5": 0.8,
+      "precision@5_std": 0.0,
+      "latency_ms": 23.124,
+      "latency_ms_std": 6.594,
+      "reads": 0
+    }
+  ]
+}

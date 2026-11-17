@@ -1,0 +1,19 @@
+method,query_id,category,precision@5,latency_ms,reads
+BoAW,0,tono220,0.8,1.838,5
+BoAW,4,tono440,0.8,1.991,6
+BoAW,8,tono880,0.8,1.529,6
+BoAW,12,chirp,0.8,1.529,6
+BoAW,16,bitono,0.8,1.53,6
+BoAW,20,ruido,0.8,1.4,6
+DTW exacto,0,tono220,0.8,26.79,0
+DTW LB_Keogh,0,tono220,0.8,14.316,0
+DTW exacto,4,tono440,0.8,26.802,0
+DTW LB_Keogh,4,tono440,0.8,14.023,0
+DTW exacto,8,tono880,0.8,24.796,0
+DTW LB_Keogh,8,tono880,0.8,26.164,0
+DTW exacto,12,chirp,0.8,24.855,0
+DTW LB_Keogh,12,chirp,0.8,27.23,0
+DTW exacto,16,bitono,0.8,26.259,0
+DTW LB_Keogh,16,bitono,0.8,25.638,0
+DTW exacto,20,ruido,0.8,27.577,0
+DTW LB_Keogh,20,ruido,0.8,31.373,0

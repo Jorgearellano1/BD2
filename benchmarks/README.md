@@ -66,3 +66,16 @@ Los nombres PNG coinciden con la plantilla LaTeX del informe. Copiar las imágen
 - El índice Hash accede a su directorio y a sus buckets como páginas del archivo; su apertura/cierre forma parte de la Session y parte de esa E/S puede no quedar desglosada por nodo. Conviene contrastar sus contadores con los del resto de estructuras antes de afirmar ventajas de I/O físico.
 - Una sola muestra tiene desviación guardada como cero por convenio; `samples` indica cuándo ocurre. El modo completo proporciona las repeticiones descritas.
 - Los CSV son datos generados. Las bases de prueba temporales se eliminan automáticamente, pero los resultados y las tablas del usuario no se eliminan.
+
+## Modulo vectorial (experimentos 7 y 8)
+
+Los experimentos de BoVW, embeddings densos y busqueda aproximada IVF viven en
+`benchmarks/vector/`. Tienen su propio README con datasets, comandos y salidas:
+
+```bash
+python benchmarks/vector/run_experiment7.py --quick
+python benchmarks/vector/run_experiment8.py --quick
+```
+
+Los resultados se guardan en `benchmarks/results/experiment_7/` y
+`benchmarks/results/experiment_8/`, separados de las corridas relacionales.

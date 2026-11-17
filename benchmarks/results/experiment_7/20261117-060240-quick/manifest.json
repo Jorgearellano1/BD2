@@ -1,0 +1,76 @@
+{
+  "experiment": 7,
+  "profile": "quick",
+  "dataset": {
+    "images": 600,
+    "classes": [
+      "airplane",
+      "car",
+      "cat",
+      "dog",
+      "flower",
+      "fruit"
+    ],
+    "sift_descriptors": 78126,
+    "embedding_dim": 512
+  },
+  "parameters": {
+    "queries_per_class": 1,
+    "words": 32,
+    "sample": 1200,
+    "iterations": 3,
+    "lists": 24,
+    "probes": 4,
+    "seed": 42,
+    "profile": "quick"
+  },
+  "build_ms": {
+    "codebook": 887.22,
+    "histograms": 25349.97,
+    "embeddings_load": 6.1,
+    "inverted_index": 1025.67,
+    "ivf_index": 2607.23,
+    "tables": 458.79
+  },
+  "summary": [
+    {
+      "method": "BoVW",
+      "precision@5": 0.5,
+      "precision@10": 0.45,
+      "precision@5_std": 0.1915,
+      "precision@10_std": 0.2217,
+      "latency_ms": 16.399,
+      "latency_ms_std": 6.208,
+      "reads": 45.5,
+      "writes": 0,
+      "feature_ms": 26237.19,
+      "index_build_ms": 1025.67
+    },
+    {
+      "method": "Dense exacto",
+      "precision@5": 1.0,
+      "precision@10": 1.0,
+      "precision@5_std": 0.0,
+      "precision@10_std": 0.0,
+      "latency_ms": 43.76,
+      "latency_ms_std": 13.064,
+      "reads": 610,
+      "writes": 0,
+      "feature_ms": 6.1,
+      "index_build_ms": 0.0
+    },
+    {
+      "method": "Dense IVF",
+      "precision@5": 1.0,
+      "precision@10": 0.9833,
+      "precision@5_std": 0.0,
+      "precision@10_std": 0.0373,
+      "latency_ms": 7.096,
+      "latency_ms_std": 1.611,
+      "reads": 74.17,
+      "writes": 0,
+      "feature_ms": 6.1,
+      "index_build_ms": 2607.23
+    }
+  ]
+}

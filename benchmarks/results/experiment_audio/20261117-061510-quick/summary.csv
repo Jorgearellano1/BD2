@@ -1,0 +1,4 @@
+method,precision@5,precision@5_std,latency_ms,latency_ms_std,reads
+BoAW,0.8,0.0,1.636,0.207,5.83
+DTW exacto,0.8,0.0,26.18,1.032,0
+DTW LB_Keogh,0.8,0.0,23.124,6.594,0

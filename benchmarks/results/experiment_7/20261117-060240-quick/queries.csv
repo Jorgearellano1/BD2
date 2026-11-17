@@ -1,0 +1,19 @@
+method,query_id,category,precision@5,precision@10,latency_ms,reads,writes,plan,strategy
+BoVW,0,airplane,0.4,0.4,19.88,48,0,TextIndexScan,INDEX_ONLY
+Dense exacto,0,airplane,1.0,1.0,57.631,610,0,VectorScan,SEQ_SCAN
+Dense IVF,0,airplane,1.0,1.0,8.478,55,0,VectorScan,INDEX_ONLY
+BoVW,100,car,0.8,0.9,20.71,48,0,TextIndexScan,INDEX_ONLY
+Dense exacto,100,car,1.0,1.0,56.632,610,0,VectorScan,SEQ_SCAN
+Dense IVF,100,car,1.0,0.9,7.443,42,0,VectorScan,INDEX_ONLY
+BoVW,200,cat,0.2,0.2,21.133,48,0,TextIndexScan,INDEX_ONLY
+Dense exacto,200,cat,1.0,1.0,48.795,610,0,VectorScan,SEQ_SCAN
+Dense IVF,200,cat,1.0,1.0,5.421,89,0,VectorScan,INDEX_ONLY
+BoVW,300,dog,0.4,0.3,11.92,47,0,TextIndexScan,INDEX_ONLY
+Dense exacto,300,dog,1.0,1.0,25.396,610,0,VectorScan,SEQ_SCAN
+Dense IVF,300,dog,1.0,1.0,9.406,69,0,VectorScan,INDEX_ONLY
+BoVW,400,flower,0.6,0.5,20.301,48,0,TextIndexScan,INDEX_ONLY
+Dense exacto,400,flower,1.0,1.0,47.379,610,0,VectorScan,SEQ_SCAN
+Dense IVF,400,flower,1.0,1.0,4.771,57,0,VectorScan,INDEX_ONLY
+BoVW,500,fruit,0.6,0.4,4.449,34,0,TextIndexScan,INDEX_ONLY
+Dense exacto,500,fruit,1.0,1.0,26.724,610,0,VectorScan,SEQ_SCAN
+Dense IVF,500,fruit,1.0,1.0,7.054,133,0,VectorScan,INDEX_ONLY
