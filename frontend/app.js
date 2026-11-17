@@ -12,8 +12,15 @@ const EXAMPLES = [
   ['P2 · Texto: consulta booleana', "SELECT id, titulo FROM docs\nWHERE cuerpo MATCH 'caballero AND andante AND NOT escudero';"],
   ['P2 · Texto: Top-K por coseno', "SELECT id, titulo, COSINE_SCORE() AS relevancia FROM docs\nWHERE cuerpo MATCH 'amor guerra'\nORDER BY relevancia DESC LIMIT 10;"],
   ['P2 · Texto con filtro relacional', "SELECT id, COSINE_SCORE() AS r FROM docs\nWHERE cuerpo MATCH 'amor guerra' AND id <= 2000\nORDER BY r DESC LIMIT 5;"],
+  ['P2 · Vectorial: crear tabla e índice IVF', "CREATE TABLE demo_vec (\n  id INT PRIMARY KEY, categoria CHAR(20), embedding VECTOR(4)\n) USING HEAP;\nINSERT INTO demo_vec VALUES (1, 'a', '[1.0, 0.0, 0.0, 0.0]');\nINSERT INTO demo_vec VALUES (2, 'a', '[0.9, 0.1, 0.0, 0.0]');\nINSERT INTO demo_vec VALUES (3, 'b', '[0.0, 1.0, 0.0, 0.0]');\nINSERT INTO demo_vec VALUES (4, 'b', '[0.0, 0.0, 1.0, 0.0]');\nCREATE INDEX idx_demo_vec ON demo_vec(embedding) USING IVF WITH (lists = 2, metric = 'COSINE');\nCREATE INDEX idx_demo_cat ON demo_vec(categoria) USING BTREE;"],
+  ['P2 · Vectorial: similitud coseno Top-K', "SET ivf.probes = 2;\nSELECT id, categoria, embedding <=> '[1.0, 0.0, 0.0, 0.0]' AS distancia\nFROM demo_vec\nORDER BY distancia ASC\nLIMIT 2;"],
+  ['P2 · Vectorial con filtro relacional', "SET ivf.probes = 2;\nSELECT id, categoria, embedding <=> '[1.0, 0.0, 0.0, 0.0]' AS distancia\nFROM demo_vec\nWHERE categoria = 'a'\nORDER BY distancia ASC\nLIMIT 2;"],
+  ['P2 · Vectorial: beans desde CSV', "CREATE TABLE beans (\n  id INT PRIMARY KEY,\n  clase CHAR(20),\n  v VECTOR(16)\n) USING HEAP\n  FROM CSV ('data/datasets/dry_beans_demo.csv', DELIMITER = ';');\nCREATE INDEX idx_beans ON beans(v) USING IVF WITH (lists = 14, metric = 'L2');"],
+  ['P2 · Vectorial: consulta beans (L2)', "SET ivf.probes = 5;\nSELECT id, clase, v <-> '[95737.000000,1284.958000,431.620041,283.315831,1.523459,0.754412,97477.000000,349.136269,0.765284,0.982150,0.728638,0.808897,0.004508,0.001191,0.654315,0.996822]' AS dist\nFROM beans\nORDER BY dist ASC\nLIMIT 5;"],
+  ['P2 · BoVW: crear tabla e índice invertido', "CREATE TABLE imagenes_bovw (\n  id INT PRIMARY KEY,\n  categoria CHAR(20),\n  palabras CHAR(1000)\n) USING HEAP\n  FROM CSV ('data/datasets/multimedia/bovw.csv', DELIMITER = ';');\nCREATE INDEX idx_bovw ON imagenes_bovw(palabras) USING INVERTED;"],
+  ['P2 · BoVW: consulta Top-K', "SELECT id, categoria, COSINE_SCORE() AS score\nFROM imagenes_bovw\nWHERE palabras MATCH 'v0003 v0003 v0003 v0059 v0059 v0059 v0006 v0006 v0006 v0030 v0030 v0030 v0032 v0032 v0032 v0034 v0034 v0034 v0044 v0044 v0044 v0005 v0005 v0005 v0009 v0009 v0009 v0020 v0020 v0020 v0021 v0021 v0021 v0040 v0040 v0040 v0048 v0048 v0048 v0053 v0053 v0053 v0062 v0062 v0062 v0000 v0000 v0000 v0008 v0008 v0008 v0010 v0010 v0010 v0015 v0015 v0015 v0018 v0018 v0018'\nORDER BY score DESC\nLIMIT 5;"],
 ];
-const INDEX_LABELS = { BTREE: 'B+', HASH: 'Hash', RTREE: 'R-Tree', INVERTED: 'Invertido' };
+const INDEX_LABELS = { BTREE: 'B+', HASH: 'Hash', RTREE: 'R-Tree', INVERTED: 'Invertido', IVF: 'IVF' };
 
 function escapeHtml(text) {
   return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -21,7 +28,7 @@ function escapeHtml(text) {
 
 function highlightSql() {
   const source = editor.value;
-  const tokens = /'(?:''|[^'])*'|\b(?:SELECT|FROM|WHERE|AND|OR|NOT|CREATE|TABLE|INDEX|INSERT|INTO|VALUES|DELETE|USING|HEAP|SEQUENTIAL|BTREE|HASH|RTREE|ON|INT|FLOAT|DOUBLE|CHAR|PRIMARY|KEY|UNIQUE|CSV|DELIMITER|FORCE|INVERTED|WITH|MATCH|ORDER|BY|LIMIT|ASC|DESC|AS|COSINE_SCORE)\b|\b\d+(?:\.\d+)?\b/gi;
+  const tokens = /'(?:''|[^'])*'|\b(?:SELECT|FROM|WHERE|AND|OR|NOT|CREATE|TABLE|INDEX|INSERT|INTO|VALUES|DELETE|USING|HEAP|SEQUENTIAL|BTREE|HASH|RTREE|ON|INT|FLOAT|DOUBLE|CHAR|VECTOR|PRIMARY|KEY|UNIQUE|CSV|DELIMITER|FORCE|INVERTED|IVF|SET|WITH|MATCH|ORDER|BY|LIMIT|ASC|DESC|AS|COSINE_SCORE)\b|\b\d+(?:\.\d+)?\b/gi;
   let result = '';
   let position = 0;
   for (const match of source.matchAll(tokens)) {
@@ -139,7 +146,7 @@ async function loadTables() {
   controls();
 }
 
-function renderExplain(node) {
+function explainTree(node) {
   const lines = [];
   function visit(item, depth) {
     const detail = item.detail ? ` [${item.detail}]` : '';
@@ -148,7 +155,43 @@ function renderExplain(node) {
     for (const child of item.children) visit(child, depth + 1);
   }
   if (node) visit(node, 0);
-  byId('explain').textContent = node ? lines.join('\n') : 'No hay árbol de ejecución disponible para esta operación.';
+  return lines;
+}
+
+function renderExplain(data) {
+  const entries = data?.explains?.length
+    ? data.explains
+    : data?.explain
+      ? [{ statement_id: 1, statement_type: 'Consulta', success: true, explain: data.explain, error: null }]
+      : [];
+
+  if (!entries.length) {
+    byId('explain').textContent = 'No hay árbol de ejecución disponible para esta operación.';
+    return;
+  }
+
+  const multiple = entries.length > 1;
+  const blocks = [];
+
+  for (const entry of entries) {
+    if (multiple) {
+      const status = entry.success === false ? `ERROR: ${entry.error ?? 'sin detalle'}` : 'OK';
+      blocks.push(`Sentencia ${entry.statement_id} · ${entry.statement_type} · ${status}`);
+      const summary = [entry.plan && `Plan: ${entry.plan}`, entry.strategy && `Estrategia: ${entry.strategy}`].filter(Boolean);
+      if (summary.length) blocks.push(`  ${summary.join(' · ')}`);
+    }
+
+    if (entry.explain) {
+      const tree = explainTree(entry.explain);
+      blocks.push(...tree.map((line) => (multiple ? `  ${line}` : line)));
+    } else {
+      blocks.push('  (sin árbol de ejecución)');
+    }
+
+    if (multiple) blocks.push('');
+  }
+
+  byId('explain').textContent = blocks.join('\n').trimEnd();
 }
 
 function clearMetrics() {
@@ -186,7 +229,7 @@ function renderResult(data) {
       const tr = body.insertRow();
       for (const value of row) {
         const cell = tr.insertCell();
-        cell.textContent = value == null ? 'NULL' : String(value);
+        cell.textContent = value == null ? 'NULL' : Array.isArray(value) ? `[${value.join(', ')}]` : String(value);
         if (typeof value === 'number') cell.className = 'numeric';
       }
     }
@@ -195,7 +238,7 @@ function renderResult(data) {
   byId('record-count').textContent = data.columns?.length ? `${format.format(data.total_rows)} registros` : `${format.format(data.affected_rows ?? 0)} afectados`;
   byId('page-info').textContent = data.total_rows ? `Página ${format.format(data.page)} de ${format.format(data.total_pages)}` : 'Sin filas';
   byId('plan').textContent = data.plan;
-  renderExplain(data.explain);
+  renderExplain(data);
   const io = data.io_breakdown;
   byId('plan-detail').textContent = [data.table, data.index ? `Índice: ${data.index}` : null,
     data.strategy ? `Estrategia: ${data.strategy}` : null,
@@ -310,5 +353,78 @@ byId('examples').addEventListener('change', (event) => {
 });
 byId('previous').addEventListener('click', () => changePage(-1));
 byId('next').addEventListener('click', () => changePage(1));
+
+const workspace = document.querySelector('.workspace');
+const resizer = byId('editor-resizer');
+const EDITOR_MIN_HEIGHT = 190;
+const EDITOR_DEFAULT_HEIGHT = 245;
+let resizeStart = null;
+
+function editorPanelHeight() {
+  return document.querySelector('.editor-panel')?.getBoundingClientRect().height ?? EDITOR_DEFAULT_HEIGHT;
+}
+
+function setEditorHeight(value, persist = true) {
+  const bounds = workspace.getBoundingClientRect();
+  const maximum = Math.max(EDITOR_MIN_HEIGHT, bounds.height - 300);
+  const height = Math.round(Math.min(Math.max(value, EDITOR_MIN_HEIGHT), maximum));
+  workspace.style.setProperty('--editor-height', `${height}px`);
+  resizer.setAttribute('aria-valuenow', String(height));
+  resizer.setAttribute('aria-valuemax', String(Math.round(maximum)));
+  if (persist) {
+    try {
+      localStorage.setItem('bd2-editor-height', String(height));
+    } catch (error) {
+      // Sin almacenamiento disponible: el ajuste vale solo para esta sesión.
+    }
+  }
+}
+
+try {
+  const savedHeight = Number(localStorage.getItem('bd2-editor-height'));
+  if (savedHeight) setEditorHeight(savedHeight, false);
+} catch (error) {
+  // Sin almacenamiento disponible.
+}
+
+resizer.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) return;
+  resizeStart = { y: event.clientY, height: editorPanelHeight() };
+  resizer.setPointerCapture(event.pointerId);
+  document.body.classList.add('resizing');
+  event.preventDefault();
+});
+
+resizer.addEventListener('pointermove', (event) => {
+  if (!resizeStart) return;
+  setEditorHeight(resizeStart.height + event.clientY - resizeStart.y);
+});
+
+function finishResize(event) {
+  if (!resizeStart) return;
+  resizeStart = null;
+  if (resizer.hasPointerCapture(event.pointerId)) resizer.releasePointerCapture(event.pointerId);
+  document.body.classList.remove('resizing');
+}
+
+resizer.addEventListener('pointerup', finishResize);
+resizer.addEventListener('pointercancel', finishResize);
+resizer.addEventListener('dblclick', () => setEditorHeight(EDITOR_DEFAULT_HEIGHT));
+resizer.addEventListener('keydown', (event) => {
+  if (event.key === 'Home') {
+    event.preventDefault();
+    setEditorHeight(EDITOR_DEFAULT_HEIGHT);
+    return;
+  }
+  if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+  event.preventDefault();
+  setEditorHeight(editorPanelHeight() + (event.key === 'ArrowDown' ? 24 : -24));
+});
+
+window.addEventListener('resize', () => {
+  if (window.matchMedia('(max-width: 850px)').matches) return;
+  setEditorHeight(editorPanelHeight(), false);
+});
+
 highlightSql();
 loadTables();

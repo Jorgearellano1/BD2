@@ -75,6 +75,19 @@ class NodeMetricsResponse(BaseModel):
     detail: str | None = None
 
 
+class StatementExplainResponse(BaseModel):
+    statement_id: int
+    statement_type: str
+    success: bool
+    error: str | None = None
+    table: str | None = None
+    plan: str = '—'
+    explain: NodeMetricsResponse | None = None
+    metrics: dict[str, float] = Field(default_factory=dict)
+    io_breakdown: dict[str, int] | None = None
+    strategy: str | None = None
+
+
 class StatementResponse(BaseModel):
     statement_id: int
     statement_type: str
@@ -100,6 +113,7 @@ class QueryResponse(BaseModel):
     table: str | None = None
     plan: str = '—'
     explain: NodeMetricsResponse | None = None
+    explains: list[StatementExplainResponse] = Field(default_factory=list)
     index: str | None = None
     statements: int = 0
     metrics: dict[str, float] = Field(default_factory=dict)

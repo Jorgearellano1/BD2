@@ -9,7 +9,7 @@ h1, h2, p, pre, figure { margin: 0; }
 h1 { font-size: 20px; }
 h2 { font-size: 16px; }
 .app-header { padding: 16px 20px; border-bottom: 1px solid #ccc; }
-.workspace { display: grid; grid-template-columns: 220px minmax(0, 1fr) 250px; grid-template-rows: 245px minmax(240px, 1fr); gap: 20px; padding: 20px; height: calc(100dvh - 57px); min-height: 600px; }
+.workspace { display: grid; grid-template-columns: 220px minmax(0, 1fr) 250px; grid-template-rows: var(--editor-height, 245px) minmax(240px, 1fr); gap: 20px; padding: 20px; height: calc(100dvh - 57px); min-height: 600px; }
 .panel { min-width: 0; min-height: 0; }
 .panel-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 14px; min-height: 28px; }
 .text-button { font-size: 12px; }
@@ -41,6 +41,12 @@ h2 { font-size: 16px; }
 .token-number { color: #8b3b00; }
 .token-string { color: #276029; }
 .editor-footer, .pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; }
+.editor-resizer { flex: 0 0 12px; position: relative; margin-top: 4px; border-top: 2px solid #ccc; cursor: row-resize; touch-action: none; }
+.editor-resizer::after { content: ''; position: absolute; left: 50%; top: 3px; width: 44px; height: 4px; border-radius: 2px; background: #bbb; transform: translateX(-50%); }
+.editor-resizer:hover, .editor-resizer:focus-visible { border-top-color: #555; }
+.editor-resizer:focus-visible { outline: 2px solid #444; outline-offset: 2px; }
+body.resizing { cursor: row-resize; user-select: none; }
+body.resizing #sql { pointer-events: none; }
 #query-state, .record-count, .pagination { font-size: 12px; color: #555; }
 .primary { padding: 7px 20px; }
 .editor-actions { display: flex; gap: 8px; }
@@ -80,6 +86,7 @@ td.numeric { text-align: right; }
   .workspace { grid-template-columns: 190px minmax(0, 1fr); grid-template-rows: 245px 400px auto; height: auto; }
   .metrics-panel { grid-column: 1 / 3; grid-row: 3; border-left: 0; border-top: 1px solid #ccc; padding: 16px 0 0; }
   .metrics-content { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .editor-resizer { display: none; }
 }
 @media (max-width: 540px) {
   .workspace { display: flex; flex-direction: column; gap: 20px; }

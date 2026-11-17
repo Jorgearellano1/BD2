@@ -96,10 +96,15 @@ def output_to_dict(output: ExecutionOutput) -> dict:
 
 
 def column_to_dict(metadata: TableMetadata, column: dict) -> dict:
+    size = column['size']
+
+    if column['type'].upper() == 'VECTOR':
+        size = column['dim']
+
     return {
         'name': column['name'],
         'type': column['type'],
-        'size': column['size'],
+        'size': size,
         'unique': metadata.is_unique_column(column['name']),
     }
 
@@ -138,7 +143,7 @@ _TABLE_RESOURCES = {'HeapFile', 'SequentialFile'}
 def io_breakdown(node: NodeMetrics | None) -> dict:
     """
     Desglose de bloques leidos/escritos en indices y en la tabla de datos
-    (enunciado P2, 5.4: telemetria del planificador multimodal).
+    Telemetria del planificador multimodal.
     """
     totals = {'index_reads': 0, 'index_writes': 0, 'table_reads': 0, 'table_writes': 0}
 
@@ -155,14 +160,16 @@ def io_breakdown(node: NodeMetrics | None) -> dict:
     return totals
 
 
-def text_strategy(node: NodeMetrics | None) -> str | None:
-    """Estrategia textual del plan (INDEX_ONLY, PRE_FILTER, ...), si existe."""
+def plan_strategy(node: NodeMetrics | None) -> str | None:
+    """Estrategia del plan (INDEX_ONLY, PRE_FILTER, ...), si existe."""
     if node is None:
         return None
-    if node.node_type in ('TextIndexScanPlan', 'FullTextScanPlan') and node.detail:
+    if node.node_type in (
+        'TextIndexScanPlan', 'FullTextScanPlan', 'VectorScanPlan',
+    ) and node.detail:
         return node.detail.split(';', 1)[0]
     for child in node.children:
-        found = text_strategy(child)
+        found = plan_strategy(child)
         if found:
             return found
     return None
@@ -176,6 +183,54 @@ def catalog_indexes(catalog: Catalog) -> dict:
     return {'indexes': [index_to_dict(index) for index in catalog.indexes()]}
 
 
+def plan_of(root: NodeMetrics | None) -> str:
+    """Nombre corto de los accesos del plan."""
+    if root is None:
+        return '—'
+
+    def access_nodes(node: NodeMetrics | None) -> list[str]:
+        if node is None:
+            return []
+
+        children = [item for child in node.children for item in access_nodes(child)]
+        return children or [node.node_type.removesuffix('Plan')]
+
+    return ' + '.join(dict.fromkeys(access_nodes(root)))
+
+
+def explain_entry(item, program) -> dict:
+    """Resumen del plan y las metricas de una sentencia."""
+    from engine.planner import PlannerVisitor
+
+    statement = None
+
+    if 1 <= item.statement_id <= len(program.statements):
+        statement = program.statements[item.statement_id - 1]
+
+    info = (
+        PlannerVisitor.statement_info(item.statement_id, statement)
+        if statement is not None else None
+    )
+    root = item.root
+
+    return {
+        'statement_id': item.statement_id,
+        'statement_type': item.statement_type,
+        'success': item.success,
+        'error': item.error,
+        'table': info.table if info else None,
+        'plan': plan_of(root),
+        'explain': node_to_dict(root) if root is not None else None,
+        'metrics': {
+            'disk_reads': float(root.pages_read) if root else 0.0,
+            'disk_writes': float(root.pages_written) if root else 0.0,
+            'elapsed_ms': float(root.elapsed_ms) if root else 0.0,
+        },
+        'io_breakdown': io_breakdown(root) if root else None,
+        'strategy': plan_strategy(root) if root else None,
+    }
+
+
 def frontend_output(output: ExecutionOutput, program, parse_ms: float, execution_ms: float) -> dict:
     successful = [item for item in output.explains if item.success]
     result = output.results[-1] if output.results else None
@@ -183,12 +238,6 @@ def frontend_output(output: ExecutionOutput, program, parse_ms: float, execution
     statement = program.statements[result.statement_id - 1] if result else None
     from engine.planner import PlannerVisitor
     info = PlannerVisitor.statement_info(result.statement_id, statement) if result else None
-
-    def access_nodes(node):
-        if node is None:
-            return []
-        children = [item for child in node.children for item in access_nodes(child)]
-        return children or [node.node_type.removesuffix('Plan')]
 
     roots = [item.root for item in output.explains if item.root is not None]
     return {
@@ -199,8 +248,9 @@ def frontend_output(output: ExecutionOutput, program, parse_ms: float, execution
         'affected_rows': (result.affected_rows or 0) if result else 0,
         'message': (result.message or _STATEMENT_MESSAGES.get(result.statement_type, 'Consulta completada.')) if result else '',
         'table': info.table if info else None,
-        'plan': ' + '.join(dict.fromkeys(access_nodes(explain.root))) if explain else '—',
+        'plan': plan_of(explain.root) if explain else '—',
         'explain': node_to_dict(explain.root) if explain else None,
+        'explains': [explain_entry(item, program) for item in output.explains],
         'statements': len(output.explains),
         'metrics': {
             'disk_reads': sum(root.pages_read for root in roots),
@@ -208,5 +258,5 @@ def frontend_output(output: ExecutionOutput, program, parse_ms: float, execution
             'parse_ms': parse_ms, 'execution_ms': execution_ms,
         },
         'io_breakdown': io_breakdown(explain.root) if explain else None,
-        'strategy': text_strategy(explain.root) if explain else None,
+        'strategy': plan_strategy(explain.root) if explain else None,
     }
