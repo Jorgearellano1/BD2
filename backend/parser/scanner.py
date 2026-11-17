@@ -10,6 +10,7 @@ class Scanner:
     def is_white_space(self, c: str) -> bool:
         return c in " \n\r\t"
 
+    
     def nextToken(self) -> Token:
         # Saltar espacios
         while self.current < len(self.input) and \
@@ -88,6 +89,8 @@ class Scanner:
                 return Token(TokenType.BTREE, lexema)
             elif upper == "HASH":
                 return Token(TokenType.HASH, lexema)
+            elif upper == "RTREE":
+                return Token(TokenType.RTREE, lexema)
             elif upper == "AND":
                 return Token(TokenType.AND, lexema)
             elif upper == "OR":
@@ -211,6 +214,7 @@ class Scanner:
         else:
             self.current += 1
             return Token(TokenType.ERR, c)
+
 
 
 def ejecutar_scanner(scanner: Scanner):

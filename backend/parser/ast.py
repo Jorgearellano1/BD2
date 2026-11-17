@@ -45,6 +45,7 @@ class StorageType(Enum):
 class IndexType(Enum):
     BTREE = auto()
     HASH = auto()
+    RTREE = auto()
 
 
 # Expressions
@@ -127,16 +128,17 @@ class CreateTableStm(Stm):
         return visitor.visit_create_table(self)
 
 
+
 @dataclass
 class CreateIndexStm(Stm):
     name: str
     table: str
     column: str
     index_type: IndexType
+    spatial_columns: tuple[str, str] | None = None
 
     def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_create_index(self)
-
 
 @dataclass
 class InsertStm(Stm):
