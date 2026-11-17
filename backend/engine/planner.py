@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable, Sequence
 
 from parser.visitor import Visitor
+from rtree.rtreeNode import MBR
 
 from parser.ast import (
     Program,
@@ -195,6 +196,7 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
             primary_key=node.primary_key,
         )
 
+    
     def visit_create_index(self, node: CreateIndexStm) -> PlanNode:
         kind = self._index_kind(node.index_type)
         options = None
@@ -206,8 +208,10 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
             table=node.table,
             column=node.column,
             index_kind=kind,
+            spatial_columns=node.spatial_columns,
             options=options,
         )
+
 
     def visit_insert(self, node: InsertStm) -> PlanNode:
         values: list[Key] = []
@@ -1107,6 +1111,7 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
             residual=None,
         )
 
+    
     def _build_and_access(
         self,
         table: str,
@@ -1115,7 +1120,119 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
         produce_rids: bool,
         assignment: dict[Condition, IndexMetadata] | None,
     ) -> AccessResult:
+
         terms = self._flatten_and(expression)
+
+        # 1. Buscar un indice R-Tree compatible con las dos columnas.
+        for index in indexes:
+            if (
+                index.table != table
+                or index.kind is not IndexKind.RTREE
+                or index.spatial_columns is None
+            ):
+                continue
+
+            latitude_column, longitude_column = index.spatial_columns
+
+            if latitude_column == longitude_column:
+                continue
+
+            bounds = {
+                latitude_column: {"lower": None, "upper": None},
+                longitude_column: {"lower": None, "upper": None},
+            }
+
+            # Recoger los limites de latitud y longitud.
+            for term in terms:
+                if not isinstance(term, Condition):
+                    continue
+
+                column, literal = self._condition_column_literal(term)
+
+                if column is None or literal is None:
+                    continue
+
+                if column.name not in bounds:
+                    continue
+
+                value = self._normalize_access_key(
+                    table=table,
+                    column=column.name,
+                    value=literal.value,
+                )
+
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    continue
+
+                value = float(value)
+                column_bounds = bounds[column.name]
+
+                if term.operator in {
+                    ComparisonOperator.GT,
+                    ComparisonOperator.GE,
+                    ComparisonOperator.EQ,
+                }:
+                    current = column_bounds["lower"]
+
+                    if current is None or value > current:
+                        column_bounds["lower"] = value
+
+                if term.operator in {
+                    ComparisonOperator.LT,
+                    ComparisonOperator.LE,
+                    ComparisonOperator.EQ,
+                }:
+                    current = column_bounds["upper"]
+
+                    if current is None or value < current:
+                        column_bounds["upper"] = value
+
+            latitude_bounds = bounds[latitude_column]
+            longitude_bounds = bounds[longitude_column]
+
+            # Necesitamos limite inferior y superior en ambos ejes.
+            if (
+                latitude_bounds["lower"] is None
+                or latitude_bounds["upper"] is None
+                or longitude_bounds["lower"] is None
+                or longitude_bounds["upper"] is None
+            ):
+                continue
+
+            lat_min = latitude_bounds["lower"]
+            lat_max = latitude_bounds["upper"]
+            lon_min = longitude_bounds["lower"]
+            lon_max = longitude_bounds["upper"]
+
+            # No construir un MBR con limites contradictorios.
+            if lat_min > lat_max or lon_min > lon_max:
+                continue
+
+            # El R-Tree almacena X=longitud, Y=latitud.
+            query_mbr = MBR(
+                lon_min,
+                lat_min,
+                lon_max,
+                lat_max,
+            )
+
+            spatial_plan = IndexScanPlan(
+                table=table,
+                index=index.name,
+                index_kind=IndexKind.RTREE,
+                key=query_mbr,
+            )
+
+            # Conservamos el WHERE completo como filtro residual.
+            # Esto garantiza la semantica exacta de <, <=, > y >=.
+            return AccessResult(
+                plan=spatial_plan,
+                used_indexes={index.name},
+                residual=expression,
+            )
+
+        # 2. Si no hay un R-Tree aplicable, continuar con la
+        #    estrategia original de HASH y BTREE.
 
         condition_groups: dict[str, list[tuple[int, Condition]]] = {}
         residual_terms: list[Expression] = []
@@ -1127,11 +1244,11 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
                 column, value = self._condition_column_literal(normalized)
 
                 if column is not None and value is not None:
-                    condition_groups.setdefault(column.name, []).append((position, normalized))
+                    condition_groups.setdefault(column.name, []).append(
+                        (position, normalized)
+                    )
                     continue
 
-            # OR / NOT / comparaciones sin forma columna-literal
-            # se resuelven como subexpresion independiente.
             if isinstance(term, LogicalExpression):
                 sub_access = self._build_expression_access(
                     table=table,
@@ -1181,10 +1298,15 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
 
         if not access_plans:
             plan = self._scan_plan(table, produce_rids)
+
         elif len(access_plans) == 1:
             plan = access_plans[0]
+
         else:
-            bitmap_children = [self._as_bitmap(child) for child in access_plans]
+            bitmap_children = [
+                self._as_bitmap(child)
+                for child in access_plans
+            ]
             plan = BitmapAndPlan(children=bitmap_children)
 
         residual = self._and_expression(residual_terms)
@@ -1194,6 +1316,7 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
             used_indexes=used_indexes,
             residual=residual,
         )
+
 
     def _build_condition_group_access(
         self,
@@ -1943,15 +2066,20 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
 
         return StorageKind.HEAP
 
+
     @staticmethod
     def _index_kind(index_type: IndexType) -> IndexKind:
         if index_type is IndexType.HASH:
             return IndexKind.HASH
 
+        if index_type is IndexType.RTREE:
+            return IndexKind.RTREE
+
         if index_type is IndexType.INVERTED:
             return IndexKind.INVERTED
 
         return IndexKind.BTREE
+
 
     @staticmethod
     def _table_metadata_from_columns(

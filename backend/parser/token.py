@@ -36,6 +36,7 @@ class TokenType(Enum):
 
     BTREE = auto()
     HASH = auto()
+    RTREE = auto()
 
     # Modulo textual (P2, Parte 3)
     INVERTED = auto()
@@ -81,7 +82,7 @@ class TokenType(Enum):
     GT = auto()
     GE = auto()
 
-    # Control
+    # Special tokens
     EOF = auto()
     ERR = auto()
 

@@ -93,6 +93,7 @@ class Parser:
 
     # CREATE
 
+
     def parse_create_stmt_rest(self) -> Stm:
         if self.check(TokenType.TABLE):
             self.match(TokenType.TABLE)
@@ -110,7 +111,13 @@ class Parser:
             table = self.match(TokenType.ID).text
 
             self.match(TokenType.LPAREN)
-            column = self.match(TokenType.ID).text
+
+            columns = [self.match(TokenType.ID).text]
+
+            while self.check(TokenType.COMMA):
+                self.match(TokenType.COMMA)
+                columns.append(self.match(TokenType.ID).text)
+
             self.match(TokenType.RPAREN)
 
             self.match(TokenType.USING)
@@ -120,13 +127,32 @@ class Parser:
             if self.check(TokenType.WITH):
                 options = self.parse_with_clause()
 
+            if index_type == IndexType.RTREE:
+                if len(columns) != 2:
+                    raise SyntaxError(
+                        "Error: un índice RTREE requiere exactamente "
+                        "dos columnas."
+                    )
+
+                spatial_columns = (columns[0], columns[1])
+
+            else:
+                if len(columns) != 1:
+                    raise SyntaxError(
+                        "Error: los índices BTREE, HASH e INVERTED requieren "
+                        "exactamente una columna."
+                    )
+
+                spatial_columns = None
+
             self.match(TokenType.SEMICOLON)
 
             return CreateIndexStm(
                 name=name,
                 table=table,
-                column=column,
+                column=columns[0],
                 index_type=index_type,
+                spatial_columns=spatial_columns,
                 options=options,
             )
 
@@ -135,6 +161,7 @@ class Parser:
             f"pero se encontro {self.current.type.name} "
             f"('{self.current.text}')"
         )
+
 
     def parse_create_table_body(self, name: str) -> CreateTableStm:
         if self.check(TokenType.LPAREN):
@@ -310,10 +337,12 @@ class Parser:
 
         return column
 
+
     def parse_index_type(self) -> IndexType:
         if self.check(TokenType.BTREE):
             self.match(TokenType.BTREE)
             return IndexType.BTREE
+
         elif self.check(TokenType.HASH):
             self.match(TokenType.HASH)
             return IndexType.HASH
@@ -321,8 +350,12 @@ class Parser:
             self.match(TokenType.INVERTED)
             return IndexType.INVERTED
 
+        elif self.check(TokenType.RTREE):
+            self.match(TokenType.RTREE)
+            return IndexType.RTREE
+
         raise SyntaxError(
-            f"Error sintactico: se esperaba BTREE, HASH o INVERTED, "
+            f"Error sintactico: se esperaba BTREE, HASH, RTREE o INVERTED, "
             f"pero se encontro {self.current.type.name} "
             f"('{self.current.text}')"
         )

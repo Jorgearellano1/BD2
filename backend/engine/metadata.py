@@ -16,6 +16,7 @@ class IndexKind(str, Enum):
     """Tipo de estructura de un indice."""
     BTREE = 'BTREE'
     HASH = 'HASH'
+    RTREE = 'RTREE'
     INVERTED = 'INVERTED'
 
 
@@ -49,8 +50,8 @@ RID_SIZE = struct.calcsize(RID_FORMAT)
 _FIXED_FMT: dict[str, str] = {
     'INT': 'i',
     'FLOAT': 'f',
+    'DOUBLE': 'd',
 }
-
 
 class TableMetadata:
     """
@@ -82,34 +83,52 @@ class TableMetadata:
         primary_key: str | None = None,
     ) -> None:
         self.name = name
-        self.columns = [self._normalize_column(col) for col in columns]
+        self.columns = [
+            self._normalize_column(col)
+            for col in columns
+        ]
         self.primary_key = primary_key
 
         # Construir struct_format desde los formatos de cada columna.
-        self.struct_format = '=' + ''.join(col['fmt'] for col in self.columns)
+        self.struct_format = '=' + ''.join(
+            col['fmt'] for col in self.columns
+        )
+
+        # Calcular el tamaño total del registro.
         self.record_size = struct.calcsize(self.struct_format)
 
     @staticmethod
     def _normalize_column(col: Column) -> Column:
         """
         Completa y valida 'fmt' y 'size' de una columna a partir de su 'type'.
+
         Permite construir el esquema desde columnas ya resueltas o desde la
-        representacion logica del catalogo (sin 'fmt').
+        representación lógica del catálogo (sin 'fmt').
         """
         tipo = col['type'].upper()
         size = col.get('size')
         fmt = col.get('fmt')
 
-        if not fmt or size is None:
-            if tipo == 'CHAR':
-                if size is None or size <= 0:
-                    raise ValueError('CHAR requiere un tamano positivo')
-                fmt = f'{size}s'
-            elif tipo in _FIXED_FMT:
-                fmt = _FIXED_FMT[tipo]
-                size = size if size is not None else struct.calcsize(fmt)
-            else:
-                raise ValueError(f'Tipo de columna no soportado: {tipo}')
+        if tipo == 'CHAR':
+            if size is None or size <= 0:
+                raise ValueError('CHAR requiere un tamaño positivo')
+
+            fmt = f'{size}s'
+            size = struct.calcsize(fmt)
+
+        elif tipo in _FIXED_FMT:
+            fmt = _FIXED_FMT[tipo]
+            expected_size = struct.calcsize(fmt)
+
+            if size is not None and size != expected_size:
+                raise ValueError(
+                    f'{tipo} requiere un tamaño de {expected_size} bytes'
+                )
+
+            size = expected_size
+
+        else:
+            raise ValueError(f'Tipo de columna no soportado: {tipo}')
 
         normalized: Column = {
             'name': col['name'],
@@ -117,20 +136,36 @@ class TableMetadata:
             'fmt': fmt,
             'size': size,
         }
+
         if col.get('unique', False):
             normalized['unique'] = True
+
         return normalized
 
     def to_dict(self) -> dict[str, Any]:
-        """Representacion logica del esquema para el catalogo."""
+        """
+        Representación lógica del esquema para el catálogo.
+
+        Guarda:
+            - name
+            - type
+            - size (solo para CHAR)
+            - unique
+
+        Los formatos físicos de INT, FLOAT y DOUBLE
+        se reconstruyen mediante _normalize_column().
+        """
         columns: list[dict[str, Any]] = []
+
         for col in self.columns:
             column: dict[str, Any] = {
                 'name': col['name'],
                 'type': col['type'],
             }
+
             if col['type'] == 'CHAR':
                 column['size'] = col['size']
+
             column['unique'] = bool(col.get('unique', False))
             columns.append(column)
 
@@ -140,9 +175,19 @@ class TableMetadata:
         }
 
     @classmethod
-    def from_dict(cls, name: str, data: dict[str, Any]) -> TableMetadata:
-        """Reconstruye el esquema desde la representacion logica del catalogo."""
+    def from_dict(
+        cls,
+        name: str,
+        data: dict[str, Any],
+    ) -> TableMetadata:
+        """
+        Reconstruye el esquema desde la representación lógica del catálogo.
+
+        Los formatos físicos se regeneran mediante _normalize_column(),
+        incluyendo DOUBLE con formato 'd' y tamaño de 8 bytes.
+        """
         columns: list[Column] = []
+
         for col in data['columns']:
             columns.append({
                 'name': col['name'],
@@ -151,7 +196,12 @@ class TableMetadata:
                 'size': col.get('size'),
                 'unique': bool(col.get('unique', False)),
             })
-        return cls(name, columns, data.get('primary_key'))
+
+        return cls(
+            name,
+            columns,
+            data.get('primary_key'),
+        )
 
     def col_index(self, col_name: str) -> int:
         """Devuelve el indice (0-based) de una columna por nombre."""
@@ -175,24 +225,30 @@ class TableMetadata:
 
     def normalize_value(self, column_name: str, value: Any) -> int | float | bytes:
         """
-        Convierte un valor Python a su representacion binaria segun el esquema.
-          - INT   : int(value)
-          - FLOAT : float(value)
-          - CHAR  : bytes de longitud fija (truncado y rellenado con b'\\x00')
+        Convierte un valor Python a su representación binaria según el esquema.
+            - INT    : int(value)
+            - FLOAT  : float(value), almacenamiento de 32 bits
+            - DOUBLE : float(value), almacenamiento de 64 bits
+            - CHAR   : bytes de longitud fija (truncado y rellenado con b'\\x00')
         """
-        col  = self.columns[self.col_index(column_name)]
+        col = self.columns[self.col_index(column_name)]
         tipo = col['type'].upper()
 
         if tipo == 'INT':
             return int(value)
-        if tipo == 'FLOAT':
+
+        if tipo in ('FLOAT', 'DOUBLE'):
             return float(value)
+
         if tipo == 'CHAR':
             size = col['size']
+
             if isinstance(value, str):
                 value = value.encode('utf-8')
+
             if len(value) < size:
                 value = value + b'\x00' * (size - len(value))
+
             return value[:size]
 
         raise ValueError(f"Tipo de columna no soportado: {tipo}")
@@ -215,13 +271,14 @@ class TableMetadata:
     ) -> CleanRecord | None:
         """
         Convierte una tupla binaria a valores Python legibles:
-          - CHAR (bytes): str sin padding nulo
-          - FLOAT       : redondeado a 2 decimales
-          - INT         : sin cambio
+            - CHAR   : str sin padding nulo
+            - FLOAT  : redondeado a 2 decimales
+            - DOUBLE : conserva su precisión
+            - INT    : sin cambio
 
         Devuelve None si raw_tuple es None.
         """
-        if not raw_tuple:
+        if raw_tuple is None:
             return None
 
         cleaned: list[Any] = []
@@ -235,7 +292,7 @@ class TableMetadata:
                 )
             elif tipo == 'FLOAT':
                 cleaned.append(round(val, 2))
-            else:  # INT u otros numericos
+            else:
                 cleaned.append(val)
 
         return tuple(cleaned)
@@ -258,5 +315,6 @@ class IndexMetadata:
     column: str
     kind: IndexKind
     file_path: str
+    spatial_columns: tuple[str, str] | None = None
     # Opciones de WITH (...) de CREATE INDEX; solo las usa INVERTED.
     options: dict[str, Any] | None = None

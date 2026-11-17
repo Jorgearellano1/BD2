@@ -57,6 +57,8 @@ from engine.plan import (
 from engine.plan_visitor import PlanVisitor
 from indexes.bplusTree import BPlusTree
 from indexes.ExtendibleHash import ExtendibleHash
+from rtree.rtree import RTree 
+from rtree.rtreeNode import MBR
 from indexes.index import Index
 from storage.heapFile import HeapFile
 from storage.sequentialFile import SequentialFile
@@ -192,7 +194,7 @@ class ExecutionContext:
     level_memory_limit: int = 64 * 1024 * 1024
 
     storage_cache: dict[str, StorageFile] = field(default_factory=dict)
-    index_cache: dict[str, Index] = field(default_factory=dict)
+    index_cache: dict[str, Index | RTree] = field(default_factory=dict)
 
     next_node_id: int = 1
     node_metrics: dict[int, NodeMetrics] = field(default_factory=dict)
@@ -386,7 +388,18 @@ class Executor(PlanVisitor[ExecutionValue]):
         index = self._get_index(node.index)
 
         def body() -> ExecutionValue:
-            return ExecutionValue(rids=index.search_all(node.key))
+            if node.index_kind is IndexKind.RTREE:
+                if not isinstance(node.key, MBR):
+                    raise ExecutorError(
+                        "La búsqueda R-Tree requiere un MBR como consulta."
+                    )
+
+                rids = index.search_intersects(node.key)
+
+            else:
+                rids = index.search_all(node.key)
+
+            return ExecutionValue(rids=rids)
 
         return self._execute_node(
             node,
@@ -406,7 +419,14 @@ class Executor(PlanVisitor[ExecutionValue]):
         self,
         node: IndexRangeScanPlan,
     ) -> ExecutionValue:
+
         index = self._get_index(node.index)
+
+        if isinstance(index, RTree):
+            raise ExecutorError(
+                "El R-Tree no admite búsquedas escalares por rango. "
+                "Utiliza una consulta espacial mediante MBR."
+            )
 
         def body() -> ExecutionValue:
             rids = index.range_search(
@@ -437,10 +457,18 @@ class Executor(PlanVisitor[ExecutionValue]):
     ) -> ExecutionValue:
         index = self._get_index(node.index)
 
+        if isinstance(index, RTree):
+            raise ExecutorError(
+                "El R-Tree no admite búsquedas Bitmap por igualdad. "
+                "Utiliza una consulta espacial mediante MBR."
+            )
+
         def body() -> ExecutionValue:
             bitmap = Bitmap()
+
             for rid in index.search_all(node.key):
                 bitmap.add(rid)
+
             return ExecutionValue(bitmap=bitmap)
 
         return self._execute_node(
@@ -463,16 +491,25 @@ class Executor(PlanVisitor[ExecutionValue]):
     ) -> ExecutionValue:
         index = self._get_index(node.index)
 
+        if isinstance(index, RTree):
+            raise ExecutorError(
+                "El R-Tree no admite búsquedas Bitmap por rango escalar. "
+                "Utiliza una consulta espacial mediante MBR."
+            )
+
         def body() -> ExecutionValue:
             bitmap = Bitmap()
+
             rids = index.range_search(
                 node.range.lower,
                 node.range.upper,
                 node.range.include_lower,
                 node.range.include_upper,
             )
+
             for rid in rids:
                 bitmap.add(rid)
+
             return ExecutionValue(bitmap=bitmap)
 
         return self._execute_node(
@@ -716,11 +753,17 @@ class Executor(PlanVisitor[ExecutionValue]):
         indexes = self._table_indexes(node.table)
 
         def body() -> ExecutionValue:
+            # Validar restricciones de unicidad en índices escalares.
             for info in indexes:
+                if info.kind is IndexKind.RTREE:
+                    continue
+
                 if not meta.is_unique_column(info.column):
                     continue
+
                 index = self._get_index(info.name)
                 key = record[meta.col_index(info.column)]
+
                 if index.search(key) is not None:
                     raise ExecutorError(f"Clave duplicada: {info.column}")
 
@@ -733,25 +776,80 @@ class Executor(PlanVisitor[ExecutionValue]):
                 entries_fn=lambda value: 1,
             )
 
-            inserted: list[tuple[Index, object, RID]] = []
+            inserted: list[tuple[object, object, RID, bool]] = []
+
             try:
                 for info in indexes:
                     index = self._get_index(info.name)
-                    key = record[meta.col_index(info.column)]
-                    ok = self._measure(
-                        index,
-                        self._index_resource_type(index),
-                        info.name,
-                        "insert",
-                        lambda index=index, key=key, rid=rid: index.insert(key, rid),
-                        entries_fn=lambda value: 1,
-                    )
-                    if not ok:
-                        raise ExecutorError(f"Clave duplicada: {info.column}")
-                    inserted.append((index, key, rid))
+
+                    if info.kind is IndexKind.RTREE:
+                        if info.spatial_columns is None:
+                            raise ExecutorError(
+                                f"El índice R-Tree '{info.name}' "
+                                "no tiene columnas espaciales."
+                            )
+
+                        latitude_column, longitude_column = info.spatial_columns
+
+                        latitude = float(
+                            record[meta.col_index(latitude_column)]
+                        )
+                        longitude = float(
+                            record[meta.col_index(longitude_column)]
+                        )
+
+                        mbr = MBR(
+                            longitude,
+                            latitude,
+                            longitude,
+                            latitude,
+                        )
+
+                        ok = self._measure(
+                            index,
+                            "RTree",
+                            info.name,
+                            "insert",
+                            lambda index=index, mbr=mbr, rid=rid:
+                                index.insert(mbr, rid),
+                            entries_fn=lambda value: 1,
+                        )
+
+                        if not ok:
+                            raise ExecutorError(
+                                f"No se pudo insertar en el índice R-Tree "
+                                f"'{info.name}'."
+                            )
+
+                        inserted.append((index, mbr, rid, True))
+
+                    else:
+                        key = record[meta.col_index(info.column)]
+
+                        ok = self._measure(
+                            index,
+                            self._index_resource_type(index),
+                            info.name,
+                            "insert",
+                            lambda index=index, key=key, rid=rid:
+                                index.insert(key, rid),
+                            entries_fn=lambda value: 1,
+                        )
+
+                        if not ok:
+                            raise ExecutorError(
+                                f"Clave duplicada: {info.column}"
+                            )
+
+                        inserted.append((index, key, rid, False))
+
             except Exception:
-                for index, key, inserted_rid in reversed(inserted):
-                    index.delete(key, inserted_rid)
+                for index, key_or_mbr, inserted_rid, is_rtree in reversed(inserted):
+                    if is_rtree:
+                        index.delete(key_or_mbr, inserted_rid)
+                    else:
+                        index.delete(key_or_mbr, inserted_rid)
+
                 storage.remove(rid)
                 raise
 
@@ -765,6 +863,7 @@ class Executor(PlanVisitor[ExecutionValue]):
     def visit_delete(self, node: DeletePlan) -> ExecutionValue:
         def body() -> ExecutionValue:
             child = node.child.accept(self)
+
             if child.rids is not None:
                 rids = list(child.rids)
             elif child.bitmap is not None:
@@ -787,31 +886,76 @@ class Executor(PlanVisitor[ExecutionValue]):
                 lambda: storage.read_many_with_rids(rids),
                 entries_fn=lambda value: len(value),
             )
+
             target_rids = [rid for rid, _ in pairs]
             records = [record for _, record in pairs]
 
-            removed_entries: list[tuple[Index, object, RID]] = []
+            removed_entries: list[tuple[object, object, RID, bool]] = []
+
             try:
                 for info in indexes:
                     index = self._get_index(info.name)
-                    column_index = meta.col_index(info.column)
-                    for rid, record in zip(target_rids, records):
-                        key = record[column_index]
-                        self._measure(
-                            index,
-                            self._index_resource_type(index),
-                            info.name,
-                            "delete",
-                            lambda index=index, key=key, rid=rid: index.delete(key, rid),
-                            entries_fn=lambda value: 1,
-                        )
-                        removed_entries.append((index, key, rid))
+
+                    if info.kind is IndexKind.RTREE:
+                        if info.spatial_columns is None:
+                            raise ExecutorError(
+                                f"El índice R-Tree '{info.name}' "
+                                "no tiene columnas espaciales."
+                            )
+
+                        latitude_column, longitude_column = info.spatial_columns
+
+                        latitude_index = meta.col_index(latitude_column)
+                        longitude_index = meta.col_index(longitude_column)
+
+                        for rid, record in zip(target_rids, records):
+                            latitude = float(record[latitude_index])
+                            longitude = float(record[longitude_index])
+
+                            mbr = MBR(
+                                longitude,
+                                latitude,
+                                longitude,
+                                latitude,
+                            )
+
+                            self._measure(
+                                index,
+                                "RTree",
+                                info.name,
+                                "delete",
+                                lambda index=index, mbr=mbr, rid=rid:
+                                    index.delete(mbr, rid),
+                                entries_fn=lambda value: 1,
+                            )
+
+                            removed_entries.append((index, mbr, rid, True))
+
+                    else:
+                        column_index = meta.col_index(info.column)
+
+                        for rid, record in zip(target_rids, records):
+                            key = record[column_index]
+
+                            self._measure(
+                                index,
+                                self._index_resource_type(index),
+                                info.name,
+                                "delete",
+                                lambda index=index, key=key, rid=rid:
+                                    index.delete(key, rid),
+                                entries_fn=lambda value: 1,
+                            )
+
+                            removed_entries.append((index, key, rid, False))
+
             except Exception:
-                for index, key, rid in reversed(removed_entries):
-                    index.insert(key, rid)
+                for index, key_or_mbr, rid, _ in reversed(removed_entries):
+                    index.insert(key_or_mbr, rid)
                 raise
 
             snapshot = self._snapshot_file(storage.filepath)
+
             try:
                 deleted = self._measure(
                     storage,
@@ -821,10 +965,13 @@ class Executor(PlanVisitor[ExecutionValue]):
                     lambda: storage.remove_many(target_rids),
                     entries_fn=lambda value: len(value),
                 )
+
             except Exception:
                 self._restore_storage_snapshot(node.table, snapshot)
-                for index, key, rid in reversed(removed_entries):
-                    index.insert(key, rid)
+
+                for index, key_or_mbr, rid, _ in reversed(removed_entries):
+                    index.insert(key_or_mbr, rid)
+
                 raise
 
             self._discard_snapshot(snapshot)
@@ -1086,32 +1233,105 @@ class Executor(PlanVisitor[ExecutionValue]):
 
         return value
 
+    
+
+    
     def visit_create_index(self, node: CreateIndexPlan) -> ExecutionValue:
         if node.index_kind is IndexKind.INVERTED:
             return self._create_inverted_index(node)
 
-        existing = self.ctx.catalog.find_index(
-            node.table, node.column, node.index_kind
-        )
-        if existing is not None:
-            raise ExecutorError(
-                f"Ya existe un indice {node.index_kind.value} "
-                f"'{existing.name}' para la columna '{node.column}' de la "
-                f"tabla '{node.table}'. CREATE INDEX no puede reutilizarlo "
-                f"ni renombrarlo."
+        if node.index_kind is IndexKind.RTREE:
+            if (
+                node.spatial_columns is None
+                or len(node.spatial_columns) != 2
+            ):
+                raise ExecutorError(
+                    "CREATE INDEX R-Tree requiere dos columnas espaciales."
+                )
+
+            existing = self.ctx.catalog.find_index(
+                node.table, node.spatial_columns, node.index_kind
+            )
+        else:
+            existing = self.ctx.catalog.find_index(
+                node.table, node.column, node.index_kind
             )
 
-        index_path = self.ctx.catalog.index_path(
-            node.table, node.column, node.index_kind
-        )
+        if existing is not None:
+            if node.index_kind is IndexKind.RTREE:
+                columns_description = (
+                    f"{node.spatial_columns[0]}, {node.spatial_columns[1]}"
+                )
+            else:
+                columns_description = node.column
+
+            raise ExecutorError(
+                f"Ya existe un indice {node.index_kind.value} "
+                f"'{existing.name}' para las columnas "
+                f"'{columns_description}' de la tabla '{node.table}'."
+            )
+
+        if node.index_kind is IndexKind.RTREE:
+            latitude_column, longitude_column = node.spatial_columns
+
+            entry = self.ctx.catalog.get_table(node.table)
+
+            for column in node.spatial_columns:
+                try:
+                    column_index = entry.metadata.col_index(column)
+                except ValueError as exc:
+                    raise ExecutorError(
+                        f"La columna espacial '{column}' no existe."
+                    ) from exc
+
+                column_type = entry.metadata.columns[column_index]["type"]
+
+                if column_type not in ("INT", "FLOAT", "DOUBLE"):
+                    raise ExecutorError(
+                        f"La columna '{column}' debe ser numerica."
+                    )
+
+            if entry.storage is not StorageKind.HEAP:
+                raise ExecutorError(
+                    "R-Tree solamente puede construirse sobre tablas HEAP."
+                )
+
+            index_path = self.ctx.catalog.index_path(
+                node.table,
+                node.spatial_columns,
+                node.index_kind,
+            )
+
+        else:
+            latitude_column = None
+            longitude_column = None
+
+            index_path = self.ctx.catalog.index_path(
+                node.table,
+                node.column,
+                node.index_kind,
+            )
+
         if os.path.exists(index_path):
-            raise ExecutorError(f"El archivo de indice ya existe: {index_path}")
+            raise ExecutorError(
+                f"El archivo de indice ya existe: {index_path}"
+            )
 
         entry = self.ctx.catalog.get_table(node.table)
         heap = self._get_storage(node.table)
-        holder: dict[str, Index | None] = {"index": None}
 
-        def build_index() -> Index:
+        holder: dict[str, object | None] = {"index": None}
+
+        def build_index():
+            if node.index_kind is IndexKind.RTREE:
+                return RTree.build_from_storage(
+                    entry.metadata,
+                    heap,
+                    (latitude_column, longitude_column),
+                    self.ctx.page_size,
+                    index_path,
+                )
+
             if node.index_kind is IndexKind.HASH:
                 return ExtendibleHash.build_from_storage(
                     entry.metadata,
@@ -1120,28 +1340,45 @@ class Executor(PlanVisitor[ExecutionValue]):
                     self.ctx.page_size,
                     index_path,
                 )
-            return BPlusTree.build_from_storage(
-                entry.metadata,
-                heap,
-                node.column,
-                self.ctx.page_size,
-                index_path,
-                sort_buffer_size=self.ctx.sort_buffer_size,
-                level_memory_limit=self.ctx.level_memory_limit,
+
+            if node.index_kind is IndexKind.BTREE:
+                return BPlusTree.build_from_storage(
+                    entry.metadata,
+                    heap,
+                    node.column,
+                    self.ctx.page_size,
+                    index_path,
+                    sort_buffer_size=self.ctx.sort_buffer_size,
+                    level_memory_limit=self.ctx.level_memory_limit,
+                )
+
+            raise ExecutorError(
+                f"Tipo de indice no soportado: {node.index_kind}"
             )
 
         def body() -> ExecutionValue:
             heap_before = self._snapshot(heap)
             start = perf_counter()
+
             index = build_index()
+
             elapsed = (perf_counter() - start) * 1000.0
-            heap_change = self._delta(heap_before, self._snapshot(heap))
-            if node.index_kind is IndexKind.HASH:
+            heap_change = self._delta(
+                heap_before,
+                self._snapshot(heap),
+            )
+
+            if node.index_kind in (IndexKind.HASH, IndexKind.RTREE):
                 index_reads = index.page_reads
                 index_writes = index.page_writes
             else:
-                index_reads = max(0, index.page_reads - heap_change.reads)
-                index_writes = max(0, index.page_writes - heap_change.writes)
+                index_reads = max(
+                    0, index.page_reads - heap_change.reads
+                )
+                index_writes = max(
+                    0, index.page_writes - heap_change.writes
+                )
+
             self._record_operation(
                 self._index_resource_type(index),
                 node.name,
@@ -1151,27 +1388,36 @@ class Executor(PlanVisitor[ExecutionValue]):
                 index_writes,
                 heap.count(),
             )
+
             self.ctx.io_reads += index_reads + heap_change.reads
             self.ctx.io_writes += index_writes + heap_change.writes
+
             holder["index"] = index
+
             return ExecutionValue(affected_rows=0)
 
         try:
             value = self._execute_node(
-                node, "CreateIndexPlan", body, rows_out_fn=lambda value: 0
+                node,
+                "CreateIndexPlan",
+                body,
+                rows_out_fn=lambda value: 0,
             )
         except Exception:
             self._remove_index_file(holder["index"], index_path)
             raise
 
         index = holder["index"]
+
         info = IndexMetadata(
             node.name,
             node.table,
             node.column,
             node.index_kind,
             index_path,
+            spatial_columns=node.spatial_columns,
         )
+
         try:
             self.ctx.catalog.add_index(info)
         except Exception:
@@ -1180,7 +1426,10 @@ class Executor(PlanVisitor[ExecutionValue]):
 
         assert index is not None
         self.ctx.index_cache[node.name] = index
+
         return value
+
+
 
     def visit_add_unique(self, node: AddUniquePlan) -> ExecutionValue:
         entry = self.ctx.catalog.get_table(node.table)
@@ -1285,7 +1534,7 @@ class Executor(PlanVisitor[ExecutionValue]):
         self.ctx.storage_cache[table] = storage
         return storage
 
-    def _get_index(self, name: str) -> Index:
+    def _get_index(self, name: str) -> Index | RTree:
         cached = self.ctx.index_cache.get(name)
         if cached is not None:
             return cached
@@ -1305,21 +1554,44 @@ class Executor(PlanVisitor[ExecutionValue]):
 
         heap = self._get_storage(meta.table)
 
-        if meta.kind is IndexKind.HASH:
-            index: Index = ExtendibleHash(
+        if meta.kind is IndexKind.RTREE:
+            if meta.spatial_columns is None:
+                raise ExecutorError(
+                    f"El índice R-Tree '{name}' no tiene columnas espaciales."
+                )
+
+            index = RTree(
+                entry.metadata,
+                meta.spatial_columns,
+                heap,
+                self.ctx.page_size,
+                meta.file_path,
+            )
+
+            try:
+                index.open()
+            except FileNotFoundError as exc:
+                raise ExecutorError(
+                    f"No se pudo abrir el índice R-Tree '{name}': {exc}"
+                ) from exc
+
+        elif meta.kind is IndexKind.HASH:
+            index = ExtendibleHash(
                 entry.metadata,
                 meta.column,
                 heap,
                 self.ctx.page_size,
                 meta.file_path,
             )
+
             try:
                 index.open()
             except FileNotFoundError as exc:
                 raise ExecutorError(
-                    f"No se pudo abrir el indice HASH '{name}': {exc}"
+                    f"No se pudo abrir el índice HASH '{name}': {exc}"
                 ) from exc
-        else:
+
+        elif meta.kind is IndexKind.BTREE:
             index = BPlusTree(
                 entry.metadata,
                 meta.column,
@@ -1330,6 +1602,11 @@ class Executor(PlanVisitor[ExecutionValue]):
                 self.ctx.level_memory_limit,
             )
 
+        else:
+            raise ExecutorError(
+                f"Tipo de índice no soportado: {meta.kind}"
+            )
+
         self.ctx.index_cache[name] = index
         return index
 
@@ -1337,7 +1614,11 @@ class Executor(PlanVisitor[ExecutionValue]):
         return [
             info
             for info in self.ctx.catalog.get_table_indexes(table)
-            if info.kind in (IndexKind.BTREE, IndexKind.HASH)
+            if info.kind in (
+                IndexKind.BTREE,
+                IndexKind.HASH,
+                IndexKind.RTREE,
+            )
         ]
 
     def _table_meta(self, table: str) -> TableMetadata:
@@ -1461,7 +1742,7 @@ class Executor(PlanVisitor[ExecutionValue]):
 
     def _remove_index_file(
         self,
-        index: Index | None,
+        index: Index | RTree | None,
         path: str,
     ) -> None:
         if index is not None:
@@ -1492,14 +1773,18 @@ class Executor(PlanVisitor[ExecutionValue]):
                 raise ExecutorError("El CSV esta vacio: falta la cabecera")
 
             header = [value.strip() for value in header]
+
             if any(value == "" for value in header):
                 raise ExecutorError("La cabecera del CSV tiene columnas vacias")
+
             if len(set(header)) != len(header):
                 raise ExecutorError("La cabecera del CSV tiene columnas repetidas")
+
             if primary_key is None:
                 raise ExecutorError(
                     "CREATE TABLE FROM CSV requiere PRIMARY KEY"
                 )
+
             if primary_key not in header:
                 raise ExecutorError(
                     f"La PRIMARY KEY '{primary_key}' no existe en la cabecera "
@@ -1514,27 +1799,34 @@ class Executor(PlanVisitor[ExecutionValue]):
             for row in reader:
                 if not row:
                     continue
+
                 has_rows = True
+
                 for index in range(len(header)):
                     value = row[index].strip() if index < len(row) else ""
+
                     if value == "":
                         all_int[index] = False
                         all_float[index] = False
                     else:
                         if re.fullmatch(r"[+-]?\d+", value) is None:
                             all_int[index] = False
+
                         try:
                             float(value)
                         except ValueError:
                             all_float[index] = False
+
                     max_length[index] = max(
-                        max_length[index], len(value.encode("utf-8"))
+                        max_length[index],
+                        len(value.encode("utf-8"))
                     )
 
             if not has_rows:
                 raise ExecutorError("El CSV no tiene filas de datos")
 
             columns = []
+
             for index, column_name in enumerate(header):
                 if all_int[index]:
                     columns.append(
@@ -1545,15 +1837,17 @@ class Executor(PlanVisitor[ExecutionValue]):
                             "unique": False,
                         }
                     )
+
                 elif all_float[index]:
                     columns.append(
                         {
                             "name": column_name,
-                            "type": "FLOAT",
+                            "type": "DOUBLE",
                             "size": None,
                             "unique": False,
                         }
                     )
+
                 else:
                     columns.append(
                         {
@@ -1636,7 +1930,8 @@ class Executor(PlanVisitor[ExecutionValue]):
                 detail=f"INVERTED {options.get('scoring')} {options.get('language')}",
             )
             self.ctx.catalog.add_index(IndexMetadata(
-                node.name, node.table, node.column, IndexKind.INVERTED, path, options,
+                node.name, node.table, node.column, IndexKind.INVERTED, path,
+                options=options,
             ))
         except Exception:
             self._remove_index_file(holder["index"], path)

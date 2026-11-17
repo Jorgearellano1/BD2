@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from rtree.rtreeNode import MBR
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeVar
 from engine.conditions import Expression
@@ -62,12 +62,11 @@ class CreateTablePlan(PlanNode):
 
 @dataclass
 class CreateIndexPlan(PlanNode):
-    """Plan para crear un indice."""
-
     name: str
     table: str
     column: str
     index_kind: IndexKind
+    spatial_columns: tuple[str, str] | None = None
     options: dict | None = None
 
     def accept(self, visitor: PlanVisitor[R]) -> R:
@@ -175,15 +174,20 @@ class SeqScanRidsPlan(PlanNode):
 @dataclass
 class IndexScanPlan(PlanNode):
     """
-    Busqueda por igualdad mediante un indice.
+    Búsqueda mediante un índice.
 
-    El resultado conceptual son RIDs de registros candidatos.
+    B+ Tree y Hash:
+        key contiene una clave escalar.
+
+    R-Tree:
+        key contiene un MBR que representa la región espacial
+        que se desea consultar.
     """
 
     table: str
     index: str
     index_kind: IndexKind
-    key: Key
+    key: Key | MBR
 
     def accept(self, visitor: PlanVisitor[R]) -> R:
         return visitor.visit_index_scan(self)
