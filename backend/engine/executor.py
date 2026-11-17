@@ -47,6 +47,12 @@ from engine.plan import (
     SequentialDeletePlan,
     SequentialRangeScanPlan,
     StatementInfo,
+    TextIndexScanPlan,
+    TextFetchPlan,
+    FullTextScanPlan,
+    SortPlan,
+    LimitPlan,
+    TextProjectPlan,
 )
 from engine.plan_visitor import PlanVisitor
 from indexes.bplusTree import BPlusTree
@@ -57,6 +63,9 @@ from indexes.index import Index
 from storage.heapFile import HeapFile
 from storage.sequentialFile import SequentialFile
 from storage.storageFile import StorageFile
+from textindex.fulltext_scan import full_text_scan
+from textindex.inverted_index import InvertedIndex
+from textindex.preprocessing import TextPreprocessor
 
 
 class ExecutorError(Exception):
@@ -97,6 +106,8 @@ class NodeMetrics:
     self_pages_written: int
     operations: list[OperationMetrics] = field(default_factory=list)
     children: list["NodeMetrics"] = field(default_factory=list)
+    # Descripcion corta opcional del nodo (estrategia textual, consulta).
+    detail: str | None = None
 
 
 @dataclass
@@ -107,6 +118,8 @@ class ExecutionValue:
     affected_rows: int | None = None
     output_columns: list[str] | None = None
     records_clean: bool = False
+    # Scores de relevancia alineados con rids o records (modulo textual).
+    scores: list[float | None] | None = None
 
 
 @dataclass
@@ -840,6 +853,7 @@ class Executor(PlanVisitor[ExecutionValue]):
                 storage.remove(rid)
                 raise
 
+            self._mark_text_indexes_dirty(node.table)
             return ExecutionValue(affected_rows=1)
 
         return self._execute_node(
@@ -961,11 +975,9 @@ class Executor(PlanVisitor[ExecutionValue]):
                 raise
 
             self._discard_snapshot(snapshot)
-
-            return ExecutionValue(
-                records=deleted,
-                affected_rows=len(deleted),
-            )
+            if deleted:
+                self._mark_text_indexes_dirty(node.table)
+            return ExecutionValue(records=deleted, affected_rows=len(deleted))
 
         return self._execute_node(
             node,
@@ -1225,6 +1237,9 @@ class Executor(PlanVisitor[ExecutionValue]):
 
     
     def visit_create_index(self, node: CreateIndexPlan) -> ExecutionValue:
+        if node.index_kind is IndexKind.INVERTED:
+            return self._create_inverted_index(node)
+
         if node.index_kind is IndexKind.RTREE:
             if (
                 node.spatial_columns is None
@@ -1526,6 +1541,17 @@ class Executor(PlanVisitor[ExecutionValue]):
 
         meta = self.ctx.catalog.get_index(name)
         entry = self.ctx.catalog.get_table(meta.table)
+
+        if meta.kind is IndexKind.INVERTED:
+            try:
+                inverted = InvertedIndex(meta.file_path, self.ctx.page_size)
+            except FileNotFoundError as exc:
+                raise ExecutorError(
+                    f"No se pudo abrir el indice INVERTED '{name}': {exc}"
+                ) from exc
+            self.ctx.index_cache[name] = inverted
+            return inverted
+
         heap = self._get_storage(meta.table)
 
         if meta.kind is IndexKind.RTREE:
@@ -1614,7 +1640,8 @@ class Executor(PlanVisitor[ExecutionValue]):
         ):
             return self.ctx.catalog.get_index(node.index).table
 
-        if isinstance(node, (FilterPlan, ProjectPlan, DeletePlan)):
+        if isinstance(node, (FilterPlan, ProjectPlan, DeletePlan, SortPlan,
+                             LimitPlan, TextProjectPlan)):
             return self._table_of(node.child)
 
         if isinstance(node, (BitmapAndPlan, BitmapOrPlan)):
@@ -1723,8 +1750,9 @@ class Executor(PlanVisitor[ExecutionValue]):
                 index.close()
             except Exception:
                 pass
-
-        if os.path.exists(path):
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        elif os.path.exists(path):
             os.remove(path)
 
     @staticmethod
@@ -1831,6 +1859,292 @@ class Executor(PlanVisitor[ExecutionValue]):
                     )
 
         return TableMetadata(name, columns, primary_key)
+
+    # ------------------------------------------------------------------
+    # Modulo textual (P2, Parte 3)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _text_of(value) -> str:
+        """CHAR de longitud fija -> str (sin relleno nulo)."""
+        if isinstance(value, bytes):
+            return value.rstrip(b"\x00").decode("utf-8", errors="ignore")
+        return str(value)
+
+    def _heap_documents(self, table: str, column: str):
+        """Genera (RID, texto) recorriendo el Heap pagina por pagina."""
+        storage = self._get_storage(table)
+        col = self._table_meta(table).col_index(column)
+        for page_records in storage.iter_pages_with_records():
+            for rid, record in page_records:
+                yield rid, self._text_of(record[col])
+
+    def _build_text_index(self, name: str, table: str, column: str,
+                          path: str, options: dict) -> InvertedIndex:
+        """Construye (o reconstruye) el indice y registra sus metricas."""
+        heap = self._get_storage(table)
+        preprocessor = TextPreprocessor.from_config(options)
+        heap_before = self._snapshot(heap)
+        index, stats = InvertedIndex.build(
+            path,
+            self._heap_documents(table, column),
+            preprocessor,
+            self.ctx.page_size,
+            int(options.get("block_postings", 500_000)),
+        )
+        heap_change = self._delta(heap_before, self._snapshot(heap))
+        self._record_operation(
+            "HeapFile", table, "scan_for_index", 0.0,
+            heap_change.reads, heap_change.writes, stats.num_docs,
+        )
+        self._record_operation(
+            "InvertedIndex", name, "spimi_build", stats.elapsed_ms,
+            stats.pages_read, stats.pages_written, stats.num_postings,
+        )
+        self.ctx.io_reads += heap_change.reads + stats.pages_read
+        self.ctx.io_writes += heap_change.writes + stats.pages_written
+        return index
+
+    def _create_inverted_index(self, node: CreateIndexPlan) -> ExecutionValue:
+        existing = self.ctx.catalog.find_index(node.table, node.column, IndexKind.INVERTED)
+        if existing is not None:
+            raise ExecutorError(
+                f"Ya existe un indice INVERTED '{existing.name}' sobre "
+                f"'{node.table}({node.column})'"
+            )
+        path = self.ctx.catalog.index_path(node.table, node.column, IndexKind.INVERTED)
+        if os.path.exists(path):
+            raise ExecutorError(f"El directorio de indice ya existe: {path}")
+        options = dict(node.options or {})
+        holder: dict[str, InvertedIndex | None] = {"index": None}
+
+        def body() -> ExecutionValue:
+            holder["index"] = self._build_text_index(
+                node.name, node.table, node.column, path, options
+            )
+            return ExecutionValue(affected_rows=0)
+
+        try:
+            value = self._execute_node(
+                node, "CreateIndexPlan", body, rows_out_fn=lambda value: 0,
+                detail=f"INVERTED {options.get('scoring')} {options.get('language')}",
+            )
+            self.ctx.catalog.add_index(IndexMetadata(
+                node.name, node.table, node.column, IndexKind.INVERTED, path,
+                options=options,
+            ))
+        except Exception:
+            self._remove_index_file(holder["index"], path)
+            raise
+        self.ctx.index_cache[node.name] = holder["index"]
+        return value
+
+    def _mark_text_indexes_dirty(self, table: str) -> None:
+        """INSERT/DELETE invalidan N, df y normas: reconstruir antes de usar."""
+        for info in self.ctx.catalog.get_table_indexes(table):
+            if info.kind is not IndexKind.INVERTED:
+                continue
+            index = self._get_index(info.name)
+            self._measure(
+                index, "InvertedIndex", info.name, "mark_dirty",
+                index.mark_dirty, entries_fn=lambda value: 0,
+            )
+
+    def _get_text_index(self, name: str) -> InvertedIndex:
+        index = self._get_index(name)
+        if not index.dirty:
+            return index
+        info = self.ctx.catalog.get_index(name)
+        index.close()
+        self.ctx.index_cache.pop(name, None)
+        rebuilt = self._build_text_index(
+            name, info.table, info.column, info.file_path, info.options or {}
+        )
+        self.ctx.index_cache[name] = rebuilt
+        return rebuilt
+
+    @staticmethod
+    def _rids_of(value: ExecutionValue) -> list[RID]:
+        if value.rids is not None:
+            return list(value.rids)
+        if value.bitmap is not None:
+            return list(value.bitmap.iter_rids())
+        return []
+
+    def visit_text_index_scan(self, node: TextIndexScanPlan) -> ExecutionValue:
+        def body() -> ExecutionValue:
+            allowed = None
+            if node.prefilter is not None:
+                allowed = set(self._rids_of(node.prefilter.accept(self)))
+            index = self._get_text_index(node.index)
+            hits, stats = index.search(
+                node.query, top_k=node.top_k, rank=node.rank,
+                allowed_rids=allowed, descending=node.descending,
+            )
+            for operation, reads, elapsed, entries in (
+                ("vocab_lookup [vocab.dic]", stats.vocab_reads, stats.vocab_ms, len(set(stats.query_terms))),
+                ("read_postings [postings.inv]", stats.postings_reads, stats.postings_ms, stats.candidates),
+                ("read_norms [docs.dat]", stats.docs_reads, stats.docs_ms, stats.candidates),
+                ("cosine_topk", 0, stats.scoring_ms, len(hits)),
+            ):
+                self._record_operation("InvertedIndex", node.index, operation,
+                                       elapsed, reads, 0, entries)
+            self.ctx.io_reads += stats.total_reads
+            return ExecutionValue(
+                rids=[hit.rid for hit in hits],
+                scores=[hit.score for hit in hits],
+            )
+
+        detail = f"{node.strategy}; MATCH '{node.query}'"
+        if node.rank:
+            detail += f"; CosineScore top_k={node.top_k if node.top_k is not None else 'todos'}"
+        return self._execute_node(
+            node, "TextIndexScanPlan", body,
+            rows_out_fn=lambda value: len(value.rids or []), detail=detail,
+        )
+
+    def visit_text_fetch(self, node: TextFetchPlan) -> ExecutionValue:
+        storage = self._get_storage(node.table)
+
+        def body() -> ExecutionValue:
+            child = node.child.accept(self)
+            rids = list(child.rids or [])
+            scores = list(child.scores or [None] * len(rids))
+            meta = self._table_meta(node.table)
+            records: list[RawRecord] = []
+            out_scores: list[float | None] = []
+            batch = len(rids) if node.residual is None else max(64, node.limit or 0)
+            batch = max(batch, 1)
+            for start in range(0, len(rids), batch):
+                chunk = rids[start:start + batch]
+                pairs = self._measure(
+                    storage, self._resource_type(storage), node.table,
+                    "read_many", lambda chunk=chunk: storage.read_many_with_rids(chunk),
+                    entries_fn=lambda value: len(value),
+                )
+                found = dict(pairs)
+                for offset, rid in enumerate(chunk):
+                    record = found.get(rid)
+                    if record is None:
+                        continue
+                    if node.residual is not None and not evaluate_expression(record, node.residual, meta):
+                        continue
+                    records.append(record)
+                    out_scores.append(scores[start + offset])
+                    if node.limit is not None and len(records) >= node.limit:
+                        break
+                if node.limit is not None and len(records) >= node.limit:
+                    break
+            return ExecutionValue(records=records, scores=out_scores, records_clean=False)
+
+        detail = "post-filter" if node.residual is not None else None
+        return self._execute_node(
+            node, "TextFetchPlan", body,
+            rows_out_fn=lambda value: len(value.records or []), detail=detail,
+        )
+
+    def visit_full_text_scan(self, node: FullTextScanPlan) -> ExecutionValue:
+        storage = self._get_storage(node.table)
+        meta = self._table_meta(node.table)
+        col = meta.col_index(node.column)
+
+        def documents():
+            # El "RID" que viaja por full_text_scan es el propio registro:
+            # asi el resultado no necesita volver a leer el Heap.
+            for record in self._iter_raw_records(storage):
+                yield record, self._text_of(record[col])
+
+        accept = None
+        if node.residual is not None:
+            def accept(record):
+                return evaluate_expression(record, node.residual, meta)
+
+        def body() -> ExecutionValue:
+            hits = self._measure(
+                storage, self._resource_type(storage), node.table, "full_text_scan",
+                lambda: full_text_scan(
+                    documents(), node.query, TextPreprocessor.from_config(node.options),
+                    top_k=node.top_k, rank=node.rank, descending=node.descending,
+                    accept=accept,
+                ),
+                entries_fn=lambda value: len(value),
+            )
+            return ExecutionValue(
+                records=[hit.rid for hit in hits],
+                scores=[hit.score for hit in hits],
+                records_clean=False,
+            )
+
+        detail = f"FULL_TEXT_SCAN; MATCH '{node.query}'"
+        return self._execute_node(
+            node, "FullTextScanPlan", body,
+            rows_out_fn=lambda value: len(value.records or []), detail=detail,
+        )
+
+    def visit_sort(self, node: SortPlan) -> ExecutionValue:
+        def body() -> ExecutionValue:
+            child = node.child.accept(self)
+            records = list(child.records or [])
+            scores = list(child.scores) if child.scores is not None else None
+            if not records:
+                return ExecutionValue(records=[], scores=scores, records_clean=child.records_clean)
+            col = self._table_meta(self._table_of(node)).col_index(node.column)
+            order = sorted(range(len(records)), key=lambda i: records[i][col],
+                           reverse=node.descending)
+            return ExecutionValue(
+                records=[records[i] for i in order],
+                scores=[scores[i] for i in order] if scores is not None else None,
+                records_clean=child.records_clean,
+            )
+
+        return self._execute_node(
+            node, "SortPlan", body,
+            rows_out_fn=lambda value: len(value.records or []),
+            detail=f"{node.column} {'DESC' if node.descending else 'ASC'}",
+        )
+
+    def visit_limit(self, node: LimitPlan) -> ExecutionValue:
+        def body() -> ExecutionValue:
+            child = node.child.accept(self)
+            return ExecutionValue(
+                records=list(child.records or [])[:node.limit],
+                scores=list(child.scores)[:node.limit] if child.scores is not None else None,
+                records_clean=child.records_clean,
+            )
+
+        return self._execute_node(
+            node, "LimitPlan", body,
+            rows_out_fn=lambda value: len(value.records or []),
+            detail=f"LIMIT {node.limit}",
+        )
+
+    def visit_text_project(self, node: TextProjectPlan) -> ExecutionValue:
+        def body() -> ExecutionValue:
+            child = node.child.accept(self)
+            records = list(child.records or [])
+            scores = list(child.scores or [None] * len(records))
+            output = list(node.columns)
+            output.insert(node.score_position, node.score_alias)
+            if not records:
+                return ExecutionValue(records=[], output_columns=output, records_clean=True)
+            meta = self._table_meta(self._table_of(node))
+            indexes = [meta.col_index(column) for column in node.columns]
+            projected: list[CleanRecord] = []
+            for record, score in zip(records, scores):
+                cleaned = meta.clean_tuple(record)
+                if cleaned is None:
+                    continue
+                row = [cleaned[i] for i in indexes]
+                row.insert(node.score_position,
+                           round(score, 6) if score is not None else None)
+                projected.append(tuple(row))
+            return ExecutionValue(records=projected, output_columns=output, records_clean=True)
+
+        return self._execute_node(
+            node, "TextProjectPlan", body,
+            rows_out_fn=lambda value: len(value.records or []),
+        )
+
     # Auxiliares de metricas
 
     @staticmethod
@@ -1920,6 +2234,7 @@ class Executor(PlanVisitor[ExecutionValue]):
         node_type: str,
         fn: Callable[[], ExecutionValue],
         rows_out_fn: Callable[[ExecutionValue], int] | None = None,
+        detail: str | None = None,
     ) -> ExecutionValue:
         node_id = self.ctx.next_node_id
         self.ctx.next_node_id += 1
@@ -1962,6 +2277,7 @@ class Executor(PlanVisitor[ExecutionValue]):
             max(0, pages_written - child_writes),
             frame.operations,
             frame.children,
+            detail,
         )
 
         if self._stack:

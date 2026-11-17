@@ -4,6 +4,16 @@ const decimal = new Intl.NumberFormat('es-PE', { maximumFractionDigits: 3 });
 const state = { tables: [], selected: null, result: null, busy: false, connected: false };
 const editor = byId('sql');
 const highlight = byId('highlight');
+const EXAMPLES = [
+  ['P1 · Rango por clave', 'SELECT * FROM estudiantes\nWHERE Student_ID >= 100 AND Student_ID <= 150;'],
+  ['P2 · Espacial: crear tabla y R-Tree', "CREATE TABLE cities (\n  id INT PRIMARY KEY, name CHAR(100), state_id INT, state_code CHAR(10),\n  state_name CHAR(100), country_id INT, country_code CHAR(10), country_name CHAR(100),\n  latitude FLOAT, longitude FLOAT, wikiDataId CHAR(30)\n) USING HEAP FROM CSV ('data/datasets/cities.csv');\nCREATE INDEX idx_cities_spatial ON cities (latitude, longitude) USING RTREE;"],
+  ['P2 · Espacial: consulta por rectángulo', 'SELECT * FROM cities\nWHERE latitude >= 25 AND latitude <= 35\n  AND longitude >= 60 AND longitude <= 75;'],
+  ['P2 · Texto: crear tabla e índice invertido', "CREATE TABLE docs (id INT PRIMARY KEY, libro INT, titulo CHAR(80), cuerpo CHAR(1000))\n  FROM CSV ('data/datasets/corpus_gutenberg_es.csv');\nCREATE INDEX idx_cuerpo ON docs (cuerpo) USING INVERTED WITH (scoring = 'TFIDF_COSINE');"],
+  ['P2 · Texto: consulta booleana', "SELECT id, titulo FROM docs\nWHERE cuerpo MATCH 'caballero AND andante AND NOT escudero';"],
+  ['P2 · Texto: Top-K por coseno', "SELECT id, titulo, COSINE_SCORE() AS relevancia FROM docs\nWHERE cuerpo MATCH 'amor guerra'\nORDER BY relevancia DESC LIMIT 10;"],
+  ['P2 · Texto con filtro relacional', "SELECT id, COSINE_SCORE() AS r FROM docs\nWHERE cuerpo MATCH 'amor guerra' AND id <= 2000\nORDER BY r DESC LIMIT 5;"],
+];
+const INDEX_LABELS = { BTREE: 'B+', HASH: 'Hash', RTREE: 'R-Tree', INVERTED: 'Invertido' };
 
 function escapeHtml(text) {
   return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
@@ -11,7 +21,7 @@ function escapeHtml(text) {
 
 function highlightSql() {
   const source = editor.value;
-  const tokens = /'(?:''|[^'])*'|\b(?:SELECT|FROM|WHERE|AND|OR|NOT|CREATE|TABLE|INDEX|INSERT|INTO|VALUES|DELETE|USING|HEAP|SEQUENTIAL|BTREE|HASH|ON|INT|FLOAT|CHAR|PRIMARY|KEY|UNIQUE|CSV|DELIMITER|FORCE)\b|\b\d+(?:\.\d+)?\b/gi;
+  const tokens = /'(?:''|[^'])*'|\b(?:SELECT|FROM|WHERE|AND|OR|NOT|CREATE|TABLE|INDEX|INSERT|INTO|VALUES|DELETE|USING|HEAP|SEQUENTIAL|BTREE|HASH|RTREE|ON|INT|FLOAT|DOUBLE|CHAR|PRIMARY|KEY|UNIQUE|CSV|DELIMITER|FORCE|INVERTED|WITH|MATCH|ORDER|BY|LIMIT|ASC|DESC|AS|COSINE_SCORE)\b|\b\d+(?:\.\d+)?\b/gi;
   let result = '';
   let position = 0;
   for (const match of source.matchAll(tokens)) {
@@ -45,6 +55,7 @@ function controls() {
   byId('execute').disabled = state.busy || !state.connected || !editor.value.trim();
   byId('execute').textContent = state.busy ? 'Ejecutando…' : 'Ejecutar';
   byId('refresh').disabled = state.busy;
+  byId('examples').disabled = state.busy;
   editor.readOnly = state.busy;
   const table = state.tables.find((item) => item.name === state.selected);
   byId('reorganize').disabled = state.busy || !state.connected || table?.storage !== 'SEQUENTIAL';
@@ -105,7 +116,7 @@ function renderSchema() {
   const indexes = document.createElement('ul');
   for (const index of table.indexes) {
     const item = textElement('li', '', 'index-item');
-    item.append(textElement('div', index.name), textElement('div', `${index.type === 'BTREE' ? 'B+' : index.type} · ${index.column}`, 'index-type'));
+    item.append(textElement('div', index.name), textElement('div', `${INDEX_LABELS[index.type] ?? index.type} · ${(index.spatial_columns ?? [index.column]).join(', ')}`, 'index-type'));
     indexes.append(item);
   }
   schema.append(indexes);
@@ -131,7 +142,9 @@ async function loadTables() {
 function renderExplain(node) {
   const lines = [];
   function visit(item, depth) {
-    lines.push(`${'  '.repeat(depth)}${item.node_type.replace(/Plan$/, '')}`);
+    const detail = item.detail ? ` [${item.detail}]` : '';
+    const io = typeof item.pages_read === 'number' ? `  (lecturas ${format.format(item.pages_read)}, escrituras ${format.format(item.pages_written ?? 0)})` : '';
+    lines.push(`${'  '.repeat(depth)}${item.node_type.replace(/Plan$/, '')}${detail}${io}`);
     for (const child of item.children) visit(child, depth + 1);
   }
   if (node) visit(node, 0);
@@ -183,7 +196,10 @@ function renderResult(data) {
   byId('page-info').textContent = data.total_rows ? `Página ${format.format(data.page)} de ${format.format(data.total_pages)}` : 'Sin filas';
   byId('plan').textContent = data.plan;
   renderExplain(data.explain);
+  const io = data.io_breakdown;
   byId('plan-detail').textContent = [data.table, data.index ? `Índice: ${data.index}` : null,
+    data.strategy ? `Estrategia: ${data.strategy}` : null,
+    io && (io.index_reads || io.table_reads) ? `Lecturas en índice: ${format.format(io.index_reads)} · en tabla: ${format.format(io.table_reads)}` : null,
     data.statements > 1 ? `Último plan · métricas de ${data.statements} sentencias` : null].filter(Boolean).join(' · ');
   const metrics = data.metrics;
   byId('reads').textContent = format.format(metrics.disk_reads);
@@ -283,6 +299,15 @@ editor.addEventListener('keydown', (event) => {
 byId('execute').addEventListener('click', () => run('/api/query', { sql: editor.value, page_size: 50 }, 'Ejecutando consulta…'));
 byId('reorganize').addEventListener('click', () => run('/api/tables/reorganize', { table: state.selected }, 'Reorganizando tabla…'));
 byId('refresh').addEventListener('click', loadTables);
+for (const [label, sql] of EXAMPLES) byId('examples').append(new Option(label, sql));
+byId('examples').addEventListener('change', (event) => {
+  if (!event.target.value) return;
+  editor.value = event.target.value;
+  event.target.value = '';
+  highlightSql();
+  controls();
+  editor.focus();
+});
 byId('previous').addEventListener('click', () => changePage(-1));
 byId('next').addEventListener('click', () => changePage(1));
 highlightSql();

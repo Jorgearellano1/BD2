@@ -93,6 +93,7 @@ class Catalog:
                     if raw.get('spatial_columns')
                     else None
                 ),
+                options=raw.get('options'),
             )
 
             if index.kind is IndexKind.RTREE:
@@ -157,6 +158,7 @@ class Catalog:
                         if idx.spatial_columns is not None
                         else None
                     ),
+                    **({'options': idx.options} if idx.options else {}),
                 }
                 for name, idx in self._indexes.items()
             },
@@ -383,6 +385,7 @@ class Catalog:
             kind=index.kind,
             file_path=index.file_path,
             spatial_columns=index.spatial_columns,
+            options=index.options,
         )
 
         del self._indexes[old_name]
@@ -428,6 +431,10 @@ class Catalog:
 
         if kind is IndexKind.BTREE:
             filename = f'{table}_{column}_bplustree.dat'
+
+        elif kind is IndexKind.INVERTED:
+            # Directorio con vocab.dic, postings.inv y docs.dat.
+            filename = f'{table}_{column}_inverted'
 
         elif kind is IndexKind.HASH:
             filename = f'{table}_{column}.hash'

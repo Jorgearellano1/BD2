@@ -17,6 +17,7 @@ class IndexKind(str, Enum):
     BTREE = 'BTREE'
     HASH = 'HASH'
     RTREE = 'RTREE'
+    INVERTED = 'INVERTED'
 
 
 class Column(TypedDict):
@@ -314,5 +315,6 @@ class IndexMetadata:
     column: str
     kind: IndexKind
     file_path: str
-    
     spatial_columns: tuple[str, str] | None = None
+    # Opciones de WITH (...) de CREATE INDEX; solo las usa INVERTED.
+    options: dict[str, Any] | None = None

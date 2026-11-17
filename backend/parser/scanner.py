@@ -1,6 +1,21 @@
 from .token import Token, TokenType
 
 
+# Palabras reservadas del modulo textual (P2, Parte 3).
+_TEXT_KEYWORDS = {
+    "INVERTED": TokenType.INVERTED,
+    "WITH": TokenType.WITH,
+    "MATCH": TokenType.MATCH,
+    "ORDER": TokenType.ORDER,
+    "BY": TokenType.BY,
+    "LIMIT": TokenType.LIMIT,
+    "ASC": TokenType.ASC,
+    "DESC": TokenType.DESC,
+    "AS": TokenType.AS,
+    "COSINE_SCORE": TokenType.COSINE_SCORE,
+}
+
+
 class Scanner:
     def __init__(self, source: str):
         self.input = source
@@ -91,6 +106,8 @@ class Scanner:
                 return Token(TokenType.HASH, lexema)
             elif upper == "RTREE":
                 return Token(TokenType.RTREE, lexema)
+            elif upper in _TEXT_KEYWORDS:
+                return Token(_TEXT_KEYWORDS[upper], lexema)
             elif upper == "AND":
                 return Token(TokenType.AND, lexema)
             elif upper == "OR":
@@ -139,8 +156,14 @@ class Scanner:
         elif c == "'":
             self.current += 1
 
-            while self.current < len(self.input) and \
-                    self.input[self.current] != "'":
+            # Una comilla duplicada ('') representa una comilla literal.
+            while self.current < len(self.input):
+                if self.input[self.current] == "'":
+                    if self.current + 1 < len(self.input) and \
+                            self.input[self.current + 1] == "'":
+                        self.current += 2
+                        continue
+                    break
                 self.current += 1
 
             if self.current >= len(self.input):

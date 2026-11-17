@@ -7,7 +7,7 @@ from .scanner import Scanner
 from .token import Token, TokenType
 from .ast import Program, Stm, CreateIndexStm, IndexType, CreateTableStm, StorageType, ColumnDef, DataType, Exp, LiteralExp
 from .ast import BinaryOp, UnaryOp
-from .ast import BinaryExp, UnaryExp, LiteralExp, IdExp
+from .ast import BinaryExp, UnaryExp, LiteralExp, IdExp, MatchExp
 
 class Parser:
     def __init__(self, scanner: Scanner):
@@ -54,7 +54,7 @@ class Parser:
     @staticmethod
     def _string_literal(token: Token) -> str:
         """Devuelve el valor de un STRING_LITERAL sin las comillas sintacticas."""
-        return token.text[1:-1]
+        return token.text[1:-1].replace("''", "'")
 
     # Reglas gramaticales
     def parse_program(self) -> Program:
@@ -123,6 +123,10 @@ class Parser:
             self.match(TokenType.USING)
             index_type = self.parse_index_type()
 
+            options = None
+            if self.check(TokenType.WITH):
+                options = self.parse_with_clause()
+
             if index_type == IndexType.RTREE:
                 if len(columns) != 2:
                     raise SyntaxError(
@@ -135,7 +139,7 @@ class Parser:
             else:
                 if len(columns) != 1:
                     raise SyntaxError(
-                        "Error: los índices BTREE y HASH requieren "
+                        "Error: los índices BTREE, HASH e INVERTED requieren "
                         "exactamente una columna."
                     )
 
@@ -148,7 +152,8 @@ class Parser:
                 table=table,
                 column=columns[0],
                 index_type=index_type,
-                spatial_columns=spatial_columns
+                spatial_columns=spatial_columns,
+                options=options,
             )
 
         raise SyntaxError(
@@ -341,17 +346,42 @@ class Parser:
         elif self.check(TokenType.HASH):
             self.match(TokenType.HASH)
             return IndexType.HASH
+        elif self.check(TokenType.INVERTED):
+            self.match(TokenType.INVERTED)
+            return IndexType.INVERTED
 
         elif self.check(TokenType.RTREE):
             self.match(TokenType.RTREE)
             return IndexType.RTREE
 
         raise SyntaxError(
-            f"Error sintactico: se esperaba BTREE, HASH o RTREE, "
+            f"Error sintactico: se esperaba BTREE, HASH, RTREE o INVERTED, "
             f"pero se encontro {self.current.type.name} "
             f"('{self.current.text}')"
         )
 
+    def parse_with_clause(self) -> dict[str, str | int]:
+        """WITH "(" ID "=" (STRING|INT) { "," ID "=" (STRING|INT) } ")"."""
+        self.match(TokenType.WITH)
+        self.match(TokenType.LPAREN)
+        options: dict[str, str | int] = {}
+        while True:
+            key = self.match(TokenType.ID).text.lower()
+            self.match(TokenType.EQ)
+            if self.check(TokenType.INT_LITERAL):
+                value: str | int = int(self.match(TokenType.INT_LITERAL).text)
+            else:
+                value = self._string_literal(self.match(TokenType.STRING_LITERAL))
+            if key in options:
+                raise SyntaxError(
+                    f"Error sintactico: opcion '{key}' repetida en WITH"
+                )
+            options[key] = value
+            if not self.check(TokenType.COMMA):
+                break
+            self.match(TokenType.COMMA)
+        self.match(TokenType.RPAREN)
+        return options
 
     # INSERT
 
@@ -427,7 +457,7 @@ class Parser:
     # SELECT
 
     def parse_select_stmt_rest(self) -> SelectStm:
-        columns = self.parse_select_list()
+        columns, score_alias, score_position = self.parse_select_list()
 
         self.match(TokenType.FROM)
         table = self.match(TokenType.ID).text
@@ -442,6 +472,23 @@ class Parser:
         if self.check(TokenType.WHERE):
             where = self.parse_where_clause()
 
+        order_by = None
+        order_desc = False
+        if self.check(TokenType.ORDER):
+            self.match(TokenType.ORDER)
+            self.match(TokenType.BY)
+            order_by = self.match(TokenType.ID).text
+            if self.check(TokenType.DESC):
+                self.match(TokenType.DESC)
+                order_desc = True
+            elif self.check(TokenType.ASC):
+                self.match(TokenType.ASC)
+
+        limit = None
+        if self.check(TokenType.LIMIT):
+            self.match(TokenType.LIMIT)
+            limit = int(self.match(TokenType.INT_LITERAL).text)
+
         self.match(TokenType.SEMICOLON)
 
         return SelectStm(
@@ -450,15 +497,52 @@ class Parser:
             force_indexes=force_indexes,
             force_seqscan=force_seqscan,
             force_all_indexes=force_all_indexes,
-            where=where
+            where=where,
+            score_alias=score_alias,
+            score_position=score_position,
+            order_by=order_by,
+            order_desc=order_desc,
+            limit=limit,
         )
 
-    def parse_select_list(self) -> list[str] | None:
+    def parse_select_list(self) -> tuple[list[str] | None, str | None, int | None]:
+        """
+        SelectList ::= "*" | SelectItem { "," SelectItem }
+        SelectItem ::= ID | COSINE_SCORE "(" ")" [ AS ID ]
+
+        Devuelve (columnas de la tabla, alias del score, posicion del score).
+        """
         if self.check(TokenType.STAR):
             self.match(TokenType.STAR)
-            return None
+            return None, None, None
 
-        return self.parse_column_list()
+        columns: list[str] = []
+        score_alias = None
+        score_position = None
+        position = 0
+        while True:
+            if self.check(TokenType.COSINE_SCORE):
+                self.match(TokenType.COSINE_SCORE)
+                self.match(TokenType.LPAREN)
+                self.match(TokenType.RPAREN)
+                alias = "cosine_score"
+                if self.check(TokenType.AS):
+                    self.match(TokenType.AS)
+                    alias = self.match(TokenType.ID).text
+                if score_alias is not None:
+                    raise SyntaxError(
+                        "Error sintactico: COSINE_SCORE() aparece mas de una vez"
+                    )
+                score_alias = alias
+                score_position = position
+            else:
+                columns.append(self.match(TokenType.ID).text)
+            position += 1
+            if not self.check(TokenType.COMMA):
+                break
+            self.match(TokenType.COMMA)
+
+        return columns, score_alias, score_position
 
     def parse_column_list(self) -> list[str]:
         columns: list[str] = []
@@ -548,6 +632,17 @@ class Parser:
             return expression
 
         left = self.parse_operand()
+
+        # columna MATCH 'consulta'
+        if self.check(TokenType.MATCH):
+            if not isinstance(left, IdExp):
+                raise SyntaxError(
+                    "Error sintactico: MATCH requiere una columna a la izquierda"
+                )
+            self.match(TokenType.MATCH)
+            query = self._string_literal(self.match(TokenType.STRING_LITERAL))
+            return MatchExp(left.value, query)
+
         op = self.parse_comparison_operator()
         right = self.parse_operand()
 

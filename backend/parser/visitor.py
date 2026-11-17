@@ -13,6 +13,7 @@ from .ast import (
     UnaryExp,
     LiteralExp,
     IdExp,
+    MatchExp,
 )
 
 
@@ -65,3 +66,9 @@ class Visitor(ABC, Generic[S, E]):
     @abstractmethod
     def visit_id_exp(self, node: IdExp) -> E:
         pass
+
+    def visit_match_exp(self, node: MatchExp) -> E:
+        """MATCH textual. No es abstracto para no romper visitors previos."""
+        raise NotImplementedError(
+            f"{type(self).__name__} no soporta MATCH"
+        )
