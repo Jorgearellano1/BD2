@@ -134,6 +134,29 @@ class Scanner:
             else:
                 return Token(TokenType.ID, lexema)
 
+        # Numeros negativos
+        elif c == "-" and self.current + 1 < len(self.input)                 and self.input[self.current + 1].isdigit():
+            self.current += 1
+
+            while self.current < len(self.input)                     and self.input[self.current].isdigit():
+                self.current += 1
+
+            if self.current < len(self.input)                     and self.input[self.current] == "."                     and self.current + 1 < len(self.input)                     and self.input[self.current + 1].isdigit():
+                self.current += 1
+
+                while self.current < len(self.input)                         and self.input[self.current].isdigit():
+                    self.current += 1
+
+                return Token(
+                    TokenType.REAL_LITERAL,
+                    self.input[self.first:self.current],
+                )
+
+            return Token(
+                TokenType.INT_LITERAL,
+                self.input[self.first:self.current],
+            )
+
         # Numeros
         elif c.isdigit():
             self.current += 1

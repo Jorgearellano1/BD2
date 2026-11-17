@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from engine.catalog import Catalog
 
 from api import schemas
+from api.recommender import RecommenderService
 from api.service import DatabaseService
 
 
@@ -23,6 +24,9 @@ TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 catalog = Catalog(str(CATALOG_PATH), str(STORAGE_DIR))
 service = DatabaseService(catalog, PAGE_SIZE)
+recommender = RecommenderService(service)
+
+MEDIA_DIR = PROJECT_ROOT / 'data' / 'datasets' / 'cars' / 'images'
 
 app = FastAPI(title='MiniDB API', version='1.0')
 
@@ -56,5 +60,18 @@ def result_page(result_id: str, page: int = Query(default=1, ge=1)) -> schemas.Q
 def reorganize(request: schemas.ReorganizeRequest) -> schemas.QueryResponse:
     return schemas.QueryResponse(**service.reorganize(request.table))
 
+
+@app.post('/api/recommend')
+def recommend(request: schemas.RecommendRequest) -> dict:
+    return recommender.recommend(request)
+
+
+@app.get('/api/recommend/samples')
+def recommend_samples(limit: int = Query(default=12, ge=1, le=30)) -> dict:
+    return recommender.samples(limit)
+
+
+if MEDIA_DIR.exists():
+    app.mount('/media', StaticFiles(directory=str(MEDIA_DIR)), name='media')
 
 app.mount('/', StaticFiles(directory=PROJECT_ROOT / 'frontend', html=True), name='frontend')

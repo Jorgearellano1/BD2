@@ -23,6 +23,16 @@ class ReorganizeRequest(BaseModel):
     table: str
 
 
+class RecommendRequest(BaseModel):
+    image_base64: str | None = None
+    description: str | None = None
+    max_price: float | None = Field(default=None, ge=0)
+    lat: float | None = None
+    lon: float | None = None
+    radius_km: float | None = Field(default=None, gt=0)
+    limit: int = Field(default=5, ge=1, le=20)
+
+
 class TableResponse(BaseModel):
     name: str
     storage: str
