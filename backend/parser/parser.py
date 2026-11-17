@@ -3,6 +3,8 @@ from .ast import SelectStm
 from .ast import AlterStm
 from .ast import InsertStm
 from .ast import CsvSource
+from .ast import SetStm
+from .ast import VectorDistance
 from .scanner import Scanner
 from .token import Token, TokenType
 from .ast import Program, Stm, CreateIndexStm, IndexType, CreateTableStm, StorageType, ColumnDef, DataType, Exp, LiteralExp
@@ -86,6 +88,10 @@ class Parser:
             self.match(TokenType.DELETE)
             return self.parse_delete_stmt_rest()
 
+        elif self.check(TokenType.SET):
+            self.match(TokenType.SET)
+            return self.parse_set_stmt_rest()
+
         raise SyntaxError(
             f"Error sintactico: token inesperado "
             f"{self.current.type.name} ('{self.current.text}')"
@@ -139,8 +145,8 @@ class Parser:
             else:
                 if len(columns) != 1:
                     raise SyntaxError(
-                        "Error: los índices BTREE, HASH e INVERTED requieren "
-                        "exactamente una columna."
+                        "Error: los índices BTREE, HASH, INVERTED e IVF "
+                        "requieren exactamente una columna."
                     )
 
                 spatial_columns = None
@@ -284,6 +290,16 @@ class Parser:
 
             return DataType.CHAR, size
 
+        elif self.check(TokenType.VECTOR):
+            self.match(TokenType.VECTOR)
+            self.match(TokenType.LPAREN)
+
+            size = int(self.match(TokenType.INT_LITERAL).text)
+
+            self.match(TokenType.RPAREN)
+
+            return DataType.VECTOR, size
+
         raise SyntaxError(
             f"Error sintactico: se esperaba un tipo, "
             f"pero se encontro {self.current.type.name} "
@@ -354,8 +370,12 @@ class Parser:
             self.match(TokenType.RTREE)
             return IndexType.RTREE
 
+        elif self.check(TokenType.IVF):
+            self.match(TokenType.IVF)
+            return IndexType.IVF
+
         raise SyntaxError(
-            f"Error sintactico: se esperaba BTREE, HASH, RTREE o INVERTED, "
+            f"Error sintactico: se esperaba BTREE, HASH, RTREE, INVERTED o IVF, "
             f"pero se encontro {self.current.type.name} "
             f"('{self.current.text}')"
         )
@@ -457,7 +477,8 @@ class Parser:
     # SELECT
 
     def parse_select_stmt_rest(self) -> SelectStm:
-        columns, score_alias, score_position = self.parse_select_list()
+        columns, score_alias, score_position, vector_distance = \
+            self.parse_select_list()
 
         self.match(TokenType.FROM)
         table = self.match(TokenType.ID).text
@@ -503,23 +524,53 @@ class Parser:
             order_by=order_by,
             order_desc=order_desc,
             limit=limit,
+            vector_distance=vector_distance,
         )
 
-    def parse_select_list(self) -> tuple[list[str] | None, str | None, int | None]:
+    def parse_set_stmt_rest(self) -> SetStm:
+        """SET ID ["." ID] "=" (INT|REAL|STRING) ";"."""
+        if self.check(TokenType.IVF):
+            parts = [self.advance().text]
+        else:
+            parts = [self.match(TokenType.ID).text]
+
+        while self.check(TokenType.DOT):
+            self.match(TokenType.DOT)
+            parts.append(self.match(TokenType.ID).text)
+
+        self.match(TokenType.EQ)
+
+        if self.check(TokenType.INT_LITERAL):
+            value: int | float | str = int(self.match(TokenType.INT_LITERAL).text)
+        elif self.check(TokenType.REAL_LITERAL):
+            value = float(self.match(TokenType.REAL_LITERAL).text)
+        else:
+            value = self._string_literal(self.match(TokenType.STRING_LITERAL))
+
+        self.match(TokenType.SEMICOLON)
+
+        return SetStm(name='.'.join(parts).lower(), value=value)
+
+    def parse_select_list(
+        self,
+    ) -> tuple[list[str] | None, str | None, int | None, VectorDistance | None]:
         """
         SelectList ::= "*" | SelectItem { "," SelectItem }
         SelectItem ::= ID | COSINE_SCORE "(" ")" [ AS ID ]
+                     | ID ("<->" | "<=>" | "<#>") STRING [ AS ID ]
 
-        Devuelve (columnas de la tabla, alias del score, posicion del score).
+        Devuelve (columnas, alias del score, posicion del score, distancia).
         """
         if self.check(TokenType.STAR):
             self.match(TokenType.STAR)
-            return None, None, None
+            return None, None, None, None
 
         columns: list[str] = []
         score_alias = None
         score_position = None
+        vector_distance = None
         position = 0
+
         while True:
             if self.check(TokenType.COSINE_SCORE):
                 self.match(TokenType.COSINE_SCORE)
@@ -536,13 +587,47 @@ class Parser:
                 score_alias = alias
                 score_position = position
             else:
-                columns.append(self.match(TokenType.ID).text)
+                column = self.match(TokenType.ID).text
+
+                if (
+                    self.check(TokenType.L2_DIST)
+                    or self.check(TokenType.COSINE_DIST)
+                    or self.check(TokenType.IP_DIST)
+                ):
+                    operator = self.advance().text
+                    literal = self._string_literal(
+                        self.match(TokenType.STRING_LITERAL)
+                    )
+                    alias = "distancia"
+
+                    if self.check(TokenType.AS):
+                        self.match(TokenType.AS)
+                        alias = self.match(TokenType.ID).text
+
+                    if vector_distance is not None:
+                        raise SyntaxError(
+                            "Error sintactico: solo se admite una distancia "
+                            "vectorial por consulta"
+                        )
+
+                    vector_distance = VectorDistance(
+                        column=column,
+                        operator=operator,
+                        literal=literal,
+                        alias=alias,
+                        position=position,
+                    )
+                else:
+                    columns.append(column)
+
             position += 1
+
             if not self.check(TokenType.COMMA):
                 break
+
             self.match(TokenType.COMMA)
 
-        return columns, score_alias, score_position
+        return columns, score_alias, score_position, vector_distance
 
     def parse_column_list(self) -> list[str]:
         columns: list[str] = []

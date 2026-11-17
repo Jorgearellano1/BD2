@@ -33,6 +33,10 @@ from engine.plan import (
     SortPlan,
     LimitPlan,
     TextProjectPlan,
+    VectorScanPlan,
+    VectorFetchPlan,
+    VectorProjectPlan,
+    SetPlan,
 )
 
 
@@ -186,4 +190,18 @@ class PlanVisitor(ABC, Generic[R]):
 
     def visit_text_project(self, node: TextProjectPlan) -> R:
         raise NotImplementedError("TextProjectPlan no soportado")
+
+    # Modulo vectorial.
+
+    def visit_vector_scan(self, node: VectorScanPlan) -> R:
+        raise NotImplementedError("VectorScanPlan no soportado")
+
+    def visit_vector_fetch(self, node: VectorFetchPlan) -> R:
+        raise NotImplementedError("VectorFetchPlan no soportado")
+
+    def visit_vector_project(self, node: VectorProjectPlan) -> R:
+        raise NotImplementedError("VectorProjectPlan no soportado")
+
+    def visit_set(self, node: SetPlan) -> R:
+        raise NotImplementedError("SetPlan no soportado")
 

@@ -38,7 +38,7 @@ class TokenType(Enum):
     HASH = auto()
     RTREE = auto()
 
-    # Modulo textual (P2, Parte 3)
+    # Modulo textual
     INVERTED = auto()
     WITH = auto()
     MATCH = auto()
@@ -49,6 +49,15 @@ class TokenType(Enum):
     DESC = auto()
     AS = auto()
     COSINE_SCORE = auto()
+
+    # Modulo vectorial
+    VECTOR = auto()
+    IVF = auto()
+    SET = auto()
+    DOT = auto()
+    L2_DIST = auto()
+    COSINE_DIST = auto()
+    IP_DIST = auto()
 
     AND = auto()
     OR = auto()

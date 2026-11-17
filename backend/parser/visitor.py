@@ -72,3 +72,9 @@ class Visitor(ABC, Generic[S, E]):
         raise NotImplementedError(
             f"{type(self).__name__} no soporta MATCH"
         )
+
+    def visit_set(self, node) -> S:
+        """SET de configuracion de sesion. Opcional para visitors previos."""
+        raise NotImplementedError(
+            f"{type(self).__name__} no soporta SET"
+        )

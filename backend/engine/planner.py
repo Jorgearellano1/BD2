@@ -14,6 +14,7 @@ from parser.ast import (
     AlterStm,
     SelectStm,
     DeleteStm,
+    SetStm,
     BinaryExp,
     UnaryExp,
     LiteralExp,
@@ -74,6 +75,10 @@ from engine.plan import (
     SortPlan,
     LimitPlan,
     TextProjectPlan,
+    VectorScanPlan,
+    VectorFetchPlan,
+    VectorProjectPlan,
+    SetPlan,
 )
 
 
@@ -173,6 +178,8 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
             return StatementInfo(statement_id, "SELECT", statement.table, statement.output_columns())
         if isinstance(statement, DeleteStm):
             return StatementInfo(statement_id, "DELETE", statement.table, None)
+        if isinstance(statement, SetStm):
+            return StatementInfo(statement_id, "SET", None, None)
         return StatementInfo(statement_id, "UNKNOWN", None, None)
 
     def visit_create_table(self, node: CreateTableStm) -> PlanNode:
@@ -203,6 +210,9 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
         if kind is IndexKind.INVERTED:
             from textindex.options import normalize_text_options
             options = normalize_text_options(node.options)
+        elif kind is IndexKind.IVF:
+            from vectorindex.options import normalize_vector_options
+            options = normalize_vector_options(node.options)
         return CreateIndexPlan(
             name=node.name,
             table=node.table,
@@ -211,6 +221,9 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
             spatial_columns=node.spatial_columns,
             options=options,
         )
+
+    def visit_set(self, node: SetStm) -> PlanNode:
+        return SetPlan(name=node.name, value=node.value)
 
 
     def visit_insert(self, node: InsertStm) -> PlanNode:
@@ -229,6 +242,9 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
     def visit_select(self, node: SelectStm) -> PlanNode:
         if node.where is not None and self._find_match(node.where) is not None:
             return self._build_text_select(node)
+
+        if node.vector_distance is not None:
+            return self._build_vector_select(node)
 
         expression = (node.where.accept(self) if node.where is not None else None)
 
@@ -428,6 +444,154 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
             )
         if node.columns is not None:
             return ProjectPlan(columns=node.columns, child=plan)
+        return plan
+
+    # ------------------------------------------------------------------
+    # SELECT con distancia vectorial
+    # ------------------------------------------------------------------
+
+    def _build_vector_select(self, node: SelectStm) -> PlanNode:
+        from vectorindex.metrics import (
+            MetricError,
+            metric_by_name,
+            metric_by_operator,
+        )
+
+        distance = node.vector_distance
+        assert distance is not None
+
+        try:
+            metric = metric_by_operator(distance.operator)
+        except MetricError as exc:
+            raise PlannerError(str(exc)) from exc
+
+        expression = (node.where.accept(self) if node.where is not None else None)
+
+        index = None
+
+        if not node.force_seqscan and not self._is_sequential_table(node.table):
+            index = self.catalog.find_index(
+                node.table, distance.column, IndexKind.IVF
+            )
+
+        if node.force_indexes is not None:
+            for name in node.force_indexes:
+                forced = self.catalog.get_index(name)
+
+                if forced.kind is not IndexKind.IVF:
+                    continue
+
+                if forced.table != node.table or forced.column != distance.column:
+                    raise PlannerError(
+                        f"El indice '{name}' no corresponde a la columna "
+                        f"'{distance.column}' de la tabla '{node.table}'"
+                    )
+
+            if index is not None and index.name not in node.force_indexes:
+                index = None
+
+        if node.force_all_indexes and index is None:
+            raise PlannerError(
+                f"FORCE INDEX(*): no existe indice IVF sobre "
+                f"'{node.table}({distance.column})'"
+            )
+
+        if index is not None:
+            options = index.options or {}
+            index_metric = metric_by_name(str(options.get('metric', 'COSINE')))
+
+            if index_metric is not metric:
+                raise PlannerError(
+                    f"El indice '{index.name}' usa la metrica "
+                    f"{index_metric.value} y la consulta usa "
+                    f"{metric.value}; usa el operador correspondiente"
+                )
+
+        prefilter = None
+        post = expression
+        strategy = 'INDEX_ONLY' if index is not None else 'SEQ_SCAN'
+
+        if expression is not None:
+            if index is None:
+                strategy = 'SEQ_SCAN'
+            else:
+                access = self._build_access(
+                    table=node.table,
+                    expression=expression,
+                    force_indexes=None,
+                    force_seqscan=False,
+                    force_all_indexes=False,
+                    produce_rids=True,
+                )
+
+                if access.used_indexes:
+                    prefilter = access.plan
+                    post = access.residual
+                    strategy = 'PRE_FILTER'
+                else:
+                    post = expression
+                    strategy = 'POST_FILTER'
+
+        distance_order = (
+            node.order_by is not None and node.order_by == distance.alias
+        )
+        column_order = (
+            node.order_by
+            if node.order_by is not None and not distance_order
+            else None
+        )
+        top_k = node.limit if column_order is None else None
+
+        scan = VectorScanPlan(
+            table=node.table,
+            column=distance.column,
+            index=index.name if index is not None else None,
+            query=distance.literal,
+            operator=distance.operator,
+            top_k=top_k if post is None else None,
+            strategy=strategy,
+            prefilter=prefilter,
+        )
+
+        plan: PlanNode = VectorFetchPlan(
+            table=node.table,
+            column=distance.column,
+            query=distance.literal,
+            operator=distance.operator,
+            alias=distance.alias,
+            child=scan,
+            residual=post,
+            limit=top_k if post is not None else None,
+        )
+
+        if column_order is not None:
+            plan = SortPlan(
+                column=column_order,
+                descending=node.order_desc,
+                child=plan,
+            )
+
+            if node.limit is not None:
+                plan = LimitPlan(limit=node.limit, child=plan)
+
+        return self._vector_output(node, plan)
+
+    @staticmethod
+    def _vector_output(node: SelectStm, plan: PlanNode) -> PlanNode:
+        distance = node.vector_distance
+
+        if distance is not None:
+            return VectorProjectPlan(
+                table=node.table,
+                columns=list(node.columns) if node.columns is not None else None,
+                alias=distance.alias,
+                position=distance.position,
+                child=plan,
+            )
+
+        if node.columns is not None:
+            return ProjectPlan(columns=node.columns, child=plan)
+
         return plan
 
     def visit_delete(self, node: DeleteStm) -> PlanNode:
@@ -2077,6 +2241,9 @@ class PlannerVisitor(Visitor[PlanNode, PlannerExpression]):
 
         if index_type is IndexType.INVERTED:
             return IndexKind.INVERTED
+
+        if index_type is IndexType.IVF:
+            return IndexKind.IVF
 
         return IndexKind.BTREE
 

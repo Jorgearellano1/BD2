@@ -1,7 +1,7 @@
 from .token import Token, TokenType
 
 
-# Palabras reservadas del modulo textual (P2, Parte 3).
+# Palabras reservadas del modulo textual.
 _TEXT_KEYWORDS = {
     "INVERTED": TokenType.INVERTED,
     "WITH": TokenType.WITH,
@@ -13,6 +13,13 @@ _TEXT_KEYWORDS = {
     "DESC": TokenType.DESC,
     "AS": TokenType.AS,
     "COSINE_SCORE": TokenType.COSINE_SCORE,
+}
+
+# Palabras reservadas del modulo vectorial.
+_VECTOR_KEYWORDS = {
+    "VECTOR": TokenType.VECTOR,
+    "IVF": TokenType.IVF,
+    "SET": TokenType.SET,
 }
 
 
@@ -122,6 +129,8 @@ class Scanner:
                 return Token(TokenType.DOUBLE, lexema)
             elif upper == "CHAR":
                 return Token(TokenType.CHAR, lexema)
+            elif upper in _VECTOR_KEYWORDS:
+                return Token(_VECTOR_KEYWORDS[upper], lexema)
             else:
                 return Token(TokenType.ID, lexema)
 
@@ -192,6 +201,10 @@ class Scanner:
             self.current += 1
             return Token(TokenType.SEMICOLON, c)
 
+        elif c == ".":
+            self.current += 1
+            return Token(TokenType.DOT, c)
+
         elif c == "*":
             self.current += 1
             return Token(TokenType.STAR, c)
@@ -214,12 +227,35 @@ class Scanner:
                 next_c = self.input[self.current + 1]
 
                 if next_c == "=":
+                    if (
+                        self.current + 2 < len(self.input)
+                        and self.input[self.current + 2] == ">"
+                    ):
+                        self.current += 3
+                        return Token(TokenType.COSINE_DIST, "<=>")
+
                     self.current += 2
                     return Token(TokenType.LE, "<=")
 
                 elif next_c == ">":
                     self.current += 2
                     return Token(TokenType.NEQ2, "<>")
+
+                elif next_c == "-":
+                    if (
+                        self.current + 2 < len(self.input)
+                        and self.input[self.current + 2] == ">"
+                    ):
+                        self.current += 3
+                        return Token(TokenType.L2_DIST, "<->")
+
+                elif next_c == "#":
+                    if (
+                        self.current + 2 < len(self.input)
+                        and self.input[self.current + 2] == ">"
+                    ):
+                        self.current += 3
+                        return Token(TokenType.IP_DIST, "<#>")
 
             self.current += 1
             return Token(TokenType.LT, "<")

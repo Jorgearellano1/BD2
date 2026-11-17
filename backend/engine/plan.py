@@ -382,7 +382,7 @@ class ProjectPlan(PlanNode):
 
 
 # ---------------------------------------------------------------------------
-# Modulo textual (P2, Parte 3)
+# Modulo textual
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -488,4 +488,79 @@ class TextProjectPlan(PlanNode):
 
     def accept(self, visitor: "PlanVisitor[R]") -> R:
         return visitor.visit_text_project(self)
+
+
+# ---------------------------------------------------------------------------
+# Modulo vectorial
+# ---------------------------------------------------------------------------
+
+@dataclass
+class VectorScanPlan(PlanNode):
+    """
+    Busqueda de similitud sobre una columna VECTOR.
+
+    index:
+        Nombre del indice IVF o None para escaneo secuencial exacto.
+
+    strategy:
+        INDEX_ONLY   sin filtro relacional.
+        PRE_FILTER   el filtro relacional produce los RID permitidos antes
+                     de visitar las celdas del IVF.
+        POST_FILTER  el filtro relacional se evalua despues de la busqueda.
+        SEQ_SCAN     no hay indice: k-NN lineal exacto.
+    """
+
+    table: str
+    column: str
+    index: str | None
+    query: str
+    operator: str
+    top_k: int | None
+    strategy: str
+    prefilter: PlanNode | None = None
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_vector_scan(self)
+
+
+@dataclass
+class VectorFetchPlan(PlanNode):
+    """Recupera del Heap los RID del IVF y conserva el orden por distancia."""
+
+    table: str
+    column: str
+    query: str
+    operator: str
+    alias: str
+    child: PlanNode
+    residual: Expression | None = None
+    limit: int | None = None
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_vector_fetch(self)
+
+
+@dataclass
+class VectorProjectPlan(PlanNode):
+    """Proyeccion que intercala la distancia vectorial entre las columnas."""
+
+    table: str
+    columns: list[str] | None
+    alias: str
+    position: int
+    child: PlanNode
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_vector_project(self)
+
+
+@dataclass
+class SetPlan(PlanNode):
+    """SET de una variable de sesion (ivf.probes)."""
+
+    name: str
+    value: int | float | str
+
+    def accept(self, visitor: "PlanVisitor[R]") -> R:
+        return visitor.visit_set(self)
 

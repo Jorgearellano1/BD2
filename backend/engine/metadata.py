@@ -18,6 +18,7 @@ class IndexKind(str, Enum):
     HASH = 'HASH'
     RTREE = 'RTREE'
     INVERTED = 'INVERTED'
+    IVF = 'IVF'
 
 
 class Column(TypedDict):
@@ -27,6 +28,7 @@ class Column(TypedDict):
     fmt: str
     size: int
     unique: NotRequired[bool]
+    dim: NotRequired[int]
 
 
 # Una clave : INT (int) , FLOAT  o  CHAR (bytes de longitud fija).
@@ -37,8 +39,8 @@ Key = int | float | bytes | str
 RawRecord = tuple[Any, ...]
 
 # Un registro ya pasado por clean_tuple
-# (CHAR -> str, FLOAT -> float, INT -> int).
-CleanRecord = tuple[str | int | float, ...]
+# (CHAR -> str, FLOAT -> float, INT -> int, VECTOR -> tuple de floats).
+CleanRecord = tuple[str | int | float | tuple[float, ...], ...]
 
 # Referencia fisica de un registro dentro de un HeapFile: (page_id, slot_id).
 RID = tuple[int, int]
@@ -104,6 +106,9 @@ class TableMetadata:
 
         Permite construir el esquema desde columnas ya resueltas o desde la
         representación lógica del catálogo (sin 'fmt').
+
+        Para VECTOR el 'size' del catalogo es la dimension y el 'size'
+        interno es la cantidad de bytes (4 por componente float32).
         """
         tipo = col['type'].upper()
         size = col.get('size')
@@ -115,6 +120,17 @@ class TableMetadata:
 
             fmt = f'{size}s'
             size = struct.calcsize(fmt)
+
+        elif tipo == 'VECTOR':
+            dimension = col.get('dim', size)
+
+            if dimension is None or dimension <= 0:
+                raise ValueError('VECTOR requiere una dimension positiva')
+
+            # Se guarda como un bloque de D float32 para que cada columna
+            # ocupe exactamente un campo del struct del registro.
+            fmt = f'{4 * dimension}s'
+            size = 4 * dimension
 
         elif tipo in _FIXED_FMT:
             fmt = _FIXED_FMT[tipo]
@@ -136,6 +152,9 @@ class TableMetadata:
             'fmt': fmt,
             'size': size,
         }
+
+        if tipo == 'VECTOR':
+            normalized['dim'] = dimension
 
         if col.get('unique', False):
             normalized['unique'] = True
@@ -165,6 +184,9 @@ class TableMetadata:
 
             if col['type'] == 'CHAR':
                 column['size'] = col['size']
+
+            elif col['type'] == 'VECTOR':
+                column['size'] = col['dim']
 
             column['unique'] = bool(col.get('unique', False))
             columns.append(column)
@@ -223,13 +245,14 @@ class TableMetadata:
         col = self.columns[self.col_index(column_name)]
         return bool(col.get('unique', False))
 
-    def normalize_value(self, column_name: str, value: Any) -> int | float | bytes:
+    def normalize_value(self, column_name: str, value: Any) -> int | float | bytes | tuple[float, ...]:
         """
         Convierte un valor Python a su representación binaria según el esquema.
             - INT    : int(value)
             - FLOAT  : float(value), almacenamiento de 32 bits
             - DOUBLE : float(value), almacenamiento de 64 bits
             - CHAR   : bytes de longitud fija (truncado y rellenado con b'\\x00')
+            - VECTOR : tupla de D floats
         """
         col = self.columns[self.col_index(column_name)]
         tipo = col['type'].upper()
@@ -250,6 +273,35 @@ class TableMetadata:
                 value = value + b'\x00' * (size - len(value))
 
             return value[:size]
+
+        if tipo == 'VECTOR':
+            from vectorindex.vectors import (
+                VectorError,
+                parse_vector,
+                vector_to_bytes,
+            )
+
+            if isinstance(value, str):
+                try:
+                    vector = parse_vector(value)
+                except VectorError as exc:
+                    raise ValueError(str(exc)) from exc
+            elif isinstance(value, (list, tuple)):
+                vector = tuple(float(item) for item in value)
+            else:
+                raise ValueError(
+                    f"La columna '{column_name}' espera un vector '[a, b, ...]'"
+                )
+
+            dimension = col['dim']
+
+            if len(vector) != dimension:
+                raise ValueError(
+                    f"La columna '{column_name}' espera {dimension} "
+                    f"componentes y recibio {len(vector)}"
+                )
+
+            return vector_to_bytes(vector)
 
         raise ValueError(f"Tipo de columna no soportado: {tipo}")
 
@@ -275,6 +327,7 @@ class TableMetadata:
             - FLOAT  : redondeado a 2 decimales
             - DOUBLE : conserva su precisión
             - INT    : sin cambio
+            - VECTOR : tuple de floats
 
         Devuelve None si raw_tuple es None.
         """
@@ -292,6 +345,11 @@ class TableMetadata:
                 )
             elif tipo == 'FLOAT':
                 cleaned.append(round(val, 2))
+            elif tipo == 'VECTOR':
+                from vectorindex.vectors import vector_from_bytes
+
+                values = vector_from_bytes(val, col['dim'])
+                cleaned.append(tuple(round(item, 6) for item in values))
             else:
                 cleaned.append(val)
 

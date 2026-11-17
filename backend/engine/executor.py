@@ -53,6 +53,10 @@ from engine.plan import (
     SortPlan,
     LimitPlan,
     TextProjectPlan,
+    VectorScanPlan,
+    VectorFetchPlan,
+    VectorProjectPlan,
+    SetPlan,
 )
 from engine.plan_visitor import PlanVisitor
 from indexes.bplusTree import BPlusTree
@@ -66,6 +70,14 @@ from storage.storageFile import StorageFile
 from textindex.fulltext_scan import full_text_scan
 from textindex.inverted_index import InvertedIndex
 from textindex.preprocessing import TextPreprocessor
+from vectorindex.ivf import IvfIndex
+from vectorindex.metrics import metric_by_name, metric_by_operator
+from vectorindex.scan import exact_knn
+from vectorindex.vectors import (
+    VectorError,
+    parse_vector,
+    vector_from_bytes,
+)
 
 
 class ExecutorError(Exception):
@@ -204,6 +216,9 @@ class ExecutionContext:
 
     io_reads: int = 0
     io_writes: int = 0
+
+    # Numero de celdas IVF consultadas por defecto (SET ivf.probes).
+    ivf_probes: int = 1
 
 
 @dataclass
@@ -854,6 +869,7 @@ class Executor(PlanVisitor[ExecutionValue]):
                 raise
 
             self._mark_text_indexes_dirty(node.table)
+            self._mark_vector_indexes_dirty(node.table)
             return ExecutionValue(affected_rows=1)
 
         return self._execute_node(
@@ -977,6 +993,7 @@ class Executor(PlanVisitor[ExecutionValue]):
             self._discard_snapshot(snapshot)
             if deleted:
                 self._mark_text_indexes_dirty(node.table)
+                self._mark_vector_indexes_dirty(node.table)
             return ExecutionValue(records=deleted, affected_rows=len(deleted))
 
         return self._execute_node(
@@ -1239,6 +1256,9 @@ class Executor(PlanVisitor[ExecutionValue]):
     def visit_create_index(self, node: CreateIndexPlan) -> ExecutionValue:
         if node.index_kind is IndexKind.INVERTED:
             return self._create_inverted_index(node)
+
+        if node.index_kind is IndexKind.IVF:
+            return self._create_ivf_index(node)
 
         if node.index_kind is IndexKind.RTREE:
             if (
@@ -1861,7 +1881,7 @@ class Executor(PlanVisitor[ExecutionValue]):
         return TableMetadata(name, columns, primary_key)
 
     # ------------------------------------------------------------------
-    # Modulo textual (P2, Parte 3)
+    # Modulo textual
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -1962,6 +1982,148 @@ class Executor(PlanVisitor[ExecutionValue]):
         )
         self.ctx.index_cache[name] = rebuilt
         return rebuilt
+
+    # ------------------------------------------------------------------
+    # Modulo vectorial
+    # ------------------------------------------------------------------
+
+    def _vector_rows(self, table: str, column: str):
+        """Genera (RID, vector) recorriendo las paginas del Heap."""
+        storage = self._get_storage(table)
+        meta = self._table_meta(table)
+        col = meta.col_index(column)
+        dimension = meta.columns[col]['dim']
+
+        for page_records in storage.iter_pages_with_records():
+            for rid, record in page_records:
+                yield rid, vector_from_bytes(record[col], dimension)
+
+    def _build_vector_index(
+        self,
+        name: str,
+        table: str,
+        column: str,
+        path: str,
+        options: dict,
+    ) -> IvfIndex:
+        heap = self._get_storage(table)
+        heap_before = self._snapshot(heap)
+
+        index, stats = IvfIndex.build(
+            path,
+            list(self._vector_rows(table, column)),
+            lists=int(options.get('lists', 25)),
+            metric=metric_by_name(str(options.get('metric', 'COSINE'))),
+            page_size=self.ctx.page_size,
+            iterations=int(options.get('iterations', 10)),
+            seed=int(options.get('seed', 42)),
+        )
+
+        heap_change = self._delta(heap_before, self._snapshot(heap))
+
+        self._record_operation(
+            'HeapFile', table, 'scan_for_index', 0.0,
+            heap_change.reads, heap_change.writes, stats.num_vectors,
+        )
+        self._record_operation(
+            'IVF', name, 'kmeans_build', stats.elapsed_ms,
+            stats.pages_read, stats.pages_written, stats.num_vectors,
+        )
+
+        self.ctx.io_reads += heap_change.reads + stats.pages_read
+        self.ctx.io_writes += heap_change.writes + stats.pages_written
+        return index
+
+    def _create_ivf_index(self, node: CreateIndexPlan) -> ExecutionValue:
+        existing = self.ctx.catalog.find_index(
+            node.table, node.column, IndexKind.IVF
+        )
+
+        if existing is not None:
+            raise ExecutorError(
+                f"Ya existe un indice IVF '{existing.name}' sobre "
+                f"'{node.table}({node.column})'"
+            )
+
+        path = self.ctx.catalog.index_path(
+            node.table, node.column, IndexKind.IVF
+        )
+
+        if os.path.exists(path):
+            raise ExecutorError(f"El directorio de indice ya existe: {path}")
+
+        options = dict(node.options or {})
+        holder: dict[str, IvfIndex | None] = {'index': None}
+
+        def body() -> ExecutionValue:
+            holder['index'] = self._build_vector_index(
+                node.name, node.table, node.column, path, options
+            )
+            return ExecutionValue(affected_rows=0)
+
+        try:
+            value = self._execute_node(
+                node, 'CreateIndexPlan', body, rows_out_fn=lambda value: 0,
+                detail=(
+                    f"IVF lists={options.get('lists')} "
+                    f"metric={options.get('metric')}"
+                ),
+            )
+            self.ctx.catalog.add_index(IndexMetadata(
+                node.name, node.table, node.column, IndexKind.IVF, path,
+                options=options,
+            ))
+        except Exception:
+            self._remove_index_file(holder['index'], path)
+            raise
+
+        self.ctx.index_cache[node.name] = holder['index']
+        return value
+
+    def _open_vector_index(self, info: IndexMetadata) -> IvfIndex:
+        index = self.ctx.index_cache.get(info.name)
+
+        if index is not None:
+            return index
+
+        entry = self.ctx.catalog.get_table(info.table)
+        column = entry.metadata.columns[entry.metadata.col_index(info.column)]
+        metric = metric_by_name(str((info.options or {}).get('metric', 'COSINE')))
+
+        index = IvfIndex(
+            info.file_path, column['dim'], metric, self.ctx.page_size
+        )
+        index.open()
+        self.ctx.index_cache[info.name] = index
+        return index
+
+    def _get_vector_index(self, name: str) -> IvfIndex:
+        info = self.ctx.catalog.get_index(name)
+        index = self._open_vector_index(info)
+
+        if index.dirty:
+            index.close()
+            self.ctx.index_cache.pop(name, None)
+            index = self._build_vector_index(
+                info.name, info.table, info.column, info.file_path,
+                dict(info.options or {}),
+            )
+            self.ctx.index_cache[name] = index
+
+        return index
+
+    def _mark_vector_indexes_dirty(self, table: str) -> None:
+        """INSERT/DELETE invalidan los centroides: reconstruir antes de usar."""
+        for info in self.ctx.catalog.get_table_indexes(table):
+            if info.kind is not IndexKind.IVF:
+                continue
+
+            index = self._open_vector_index(info)
+
+            self._measure(
+                index, 'IVF', info.name, 'mark_dirty',
+                index.mark_dirty, entries_fn=lambda value: 0,
+            )
 
     @staticmethod
     def _rids_of(value: ExecutionValue) -> list[RID]:
@@ -2143,6 +2305,200 @@ class Executor(PlanVisitor[ExecutionValue]):
         return self._execute_node(
             node, "TextProjectPlan", body,
             rows_out_fn=lambda value: len(value.records or []),
+        )
+
+    # ------------------------------------------------------------------
+    # Ejecucion vectorial
+    # ------------------------------------------------------------------
+
+    def visit_vector_scan(self, node: VectorScanPlan) -> ExecutionValue:
+        meta = self._table_meta(node.table)
+        column = meta.columns[meta.col_index(node.column)]
+        dimension = column['dim']
+
+        try:
+            query = parse_vector(node.query)
+        except VectorError as exc:
+            raise ExecutorError(str(exc)) from exc
+
+        if len(query) != dimension:
+            raise ExecutorError(
+                f"El vector de consulta tiene {len(query)} componentes y "
+                f"'{node.column}' espera {dimension}."
+            )
+
+        metric = metric_by_operator(node.operator)
+        total = max(1, self._get_storage(node.table).count())
+        k = node.top_k if node.top_k is not None else total
+
+        def body() -> ExecutionValue:
+            allowed = None
+
+            if node.prefilter is not None:
+                allowed = set(self._rids_of(node.prefilter.accept(self)))
+
+            if node.index is not None:
+                index = self._get_vector_index(node.index)
+                before = index.page_reads
+
+                hits, stats = index.search(
+                    query,
+                    k,
+                    probes=self.ctx.ivf_probes,
+                    allowed_rids=allowed,
+                )
+
+                reads = max(0, index.page_reads - before)
+
+                self._record_operation(
+                    'IVF', node.index, 'probe_centroids', 0.0,
+                    0, 0, stats.cells_probed,
+                )
+                self._record_operation(
+                    'IVF', node.index, 'scan_lists', stats.elapsed_ms,
+                    reads, 0, stats.candidates,
+                )
+                self.ctx.io_reads += reads
+            else:
+                storage = self._get_storage(node.table)
+
+                hits = self._measure(
+                    storage,
+                    self._resource_type(storage),
+                    node.table,
+                    'vector_scan',
+                    lambda: exact_knn(
+                        self._vector_rows(node.table, node.column),
+                        query,
+                        k,
+                        metric,
+                        allowed,
+                    ),
+                    entries_fn=lambda value: len(value),
+                )
+
+            return ExecutionValue(
+                rids=[rid for rid, _ in hits],
+                scores=[value for _, value in hits],
+            )
+
+        top_k = node.top_k if node.top_k is not None else 'todos'
+        return self._execute_node(
+            node, 'VectorScanPlan', body,
+            rows_out_fn=lambda value: len(value.rids or []),
+            detail=f"{node.strategy}; {node.operator} top_k={top_k}",
+        )
+
+    def visit_vector_fetch(self, node: VectorFetchPlan) -> ExecutionValue:
+        storage = self._get_storage(node.table)
+
+        def body() -> ExecutionValue:
+            child = node.child.accept(self)
+            rids = list(child.rids or [])
+            scores = list(child.scores or [None] * len(rids))
+            meta = self._table_meta(node.table)
+            records: list[RawRecord] = []
+            out_scores: list[float | None] = []
+            batch = len(rids) if node.residual is None else max(64, node.limit or 0)
+            batch = max(batch, 1)
+
+            for start in range(0, len(rids), batch):
+                chunk = rids[start:start + batch]
+
+                pairs = self._measure(
+                    storage,
+                    self._resource_type(storage),
+                    node.table,
+                    'read_many',
+                    lambda chunk=chunk: storage.read_many_with_rids(chunk),
+                    entries_fn=lambda value: len(value),
+                )
+                found = dict(pairs)
+
+                for offset, rid in enumerate(chunk):
+                    record = found.get(rid)
+
+                    if record is None:
+                        continue
+
+                    if node.residual is not None and not evaluate_expression(
+                        record, node.residual, meta
+                    ):
+                        continue
+
+                    records.append(record)
+                    out_scores.append(scores[start + offset])
+
+                    if node.limit is not None and len(records) >= node.limit:
+                        break
+
+                if node.limit is not None and len(records) >= node.limit:
+                    break
+
+            return ExecutionValue(
+                records=records,
+                scores=out_scores,
+                records_clean=False,
+            )
+
+        detail = 'post-filter' if node.residual is not None else None
+
+        return self._execute_node(
+            node, 'VectorFetchPlan', body,
+            rows_out_fn=lambda value: len(value.records or []), detail=detail,
+        )
+
+    def visit_vector_project(self, node: VectorProjectPlan) -> ExecutionValue:
+        def body() -> ExecutionValue:
+            child = node.child.accept(self)
+            records = list(child.records or [])
+            scores = list(child.scores or [None] * len(records))
+            meta = self._table_meta(node.table)
+
+            if node.columns is None:
+                columns = [column['name'] for column in meta.columns]
+            else:
+                columns = list(node.columns)
+
+            output = list(columns)
+            output.insert(node.position, node.alias)
+            indexes = [meta.col_index(column) for column in columns]
+            projected: list[CleanRecord] = []
+
+            for record, distance in zip(records, scores):
+                cleaned = meta.clean_tuple(record)
+
+                if cleaned is None:
+                    continue
+
+                row = [cleaned[index] for index in indexes]
+                row.insert(
+                    node.position,
+                    round(distance, 6) if distance is not None else None,
+                )
+                projected.append(tuple(row))
+
+            return ExecutionValue(
+                records=projected,
+                output_columns=output,
+                records_clean=True,
+            )
+
+        return self._execute_node(
+            node, 'VectorProjectPlan', body,
+            rows_out_fn=lambda value: len(value.records or []),
+        )
+
+    def visit_set(self, node: SetPlan) -> ExecutionValue:
+        def body() -> ExecutionValue:
+            if node.name == 'ivf.probes':
+                self.ctx.ivf_probes = int(node.value)
+
+            return ExecutionValue(affected_rows=0)
+
+        return self._execute_node(
+            node, 'SetPlan', body, rows_out_fn=lambda value: 0,
+            detail=f"{node.name} = {node.value}",
         )
 
     # Auxiliares de metricas

@@ -436,6 +436,10 @@ class Catalog:
             # Directorio con vocab.dic, postings.inv y docs.dat.
             filename = f'{table}_{column}_inverted'
 
+        elif kind is IndexKind.IVF:
+            # Directorio con centroids.ctr y lists.lst.
+            filename = f'{table}_{column}_ivf'
+
         elif kind is IndexKind.HASH:
             filename = f'{table}_{column}.hash'
 

@@ -13,6 +13,7 @@ from .ast import (
     AlterStm,
     SelectStm,
     DeleteStm,
+    SetStm,
     BinaryExp,
     UnaryExp,
     LiteralExp,
@@ -51,7 +52,7 @@ _COMPARISON_OPS = {
 _NUMERIC_TYPES = {'INT', 'FLOAT'}
 
 # Tipos soportados por el almacenamiento.
-_SUPPORTED_TYPES = {'INT', 'FLOAT', 'CHAR'}
+_SUPPORTED_TYPES = {'INT', 'FLOAT', 'CHAR', 'VECTOR'}
 
 
 class SemanticError(ValueError):
@@ -249,6 +250,19 @@ class SemanticVisitor(Visitor[None, None]):
                     f"en la columna '{column.name}'"
                 )
 
+        if type_name == 'VECTOR':
+            if column.size is None or column.size <= 0:
+                raise ValueError(
+                    f"Error semantico: VECTOR debe tener una dimension mayor "
+                    f"que 0 en la columna '{column.name}'"
+                )
+
+            if column.primary_key or column.unique:
+                raise ValueError(
+                    f"Error semantico: la columna VECTOR '{column.name}' no "
+                    f"admite PRIMARY KEY ni UNIQUE"
+                )
+
     def visit_create_index(self, node: CreateIndexStm) -> None:
         if not self._table_exists(node.table):
             raise ValueError(
@@ -265,6 +279,16 @@ class SemanticVisitor(Visitor[None, None]):
         if metadata is not None:
             self._require_column(metadata, node.column)
 
+            vector_column = self._column_type(metadata, node.column) == 'VECTOR'
+
+            if vector_column and node.index_type not in (
+                IndexType.IVF, IndexType.INVERTED, IndexType.RTREE,
+            ):
+                raise ValueError(
+                    f"Error semantico: la columna VECTOR '{node.column}' solo "
+                    f"admite indices IVF"
+                )
+
         if self._index_exists(node.name):
             raise ValueError(
                 f"Error semantico: el indice '{node.name}' ya existe"
@@ -279,9 +303,18 @@ class SemanticVisitor(Visitor[None, None]):
                         f"columna CHAR y '{node.column}' no lo es"
                     )
             normalize_text_options(node.options)
+        elif node.index_type is IndexType.IVF:
+            from vectorindex.options import normalize_vector_options
+            if metadata is not None:
+                if self._column_type(metadata, node.column) != 'VECTOR':
+                    raise ValueError(
+                        f"Error semantico: el indice IVF requiere una "
+                        f"columna VECTOR y '{node.column}' no lo es"
+                    )
+            normalize_vector_options(node.options)
         elif node.options:
             raise ValueError(
-                "Error semantico: WITH (...) solo se admite en indices INVERTED"
+                "Error semantico: WITH (...) no se admite en este tipo de indice"
             )
 
         self._new_indexes[node.name] = _IndexInfo(
@@ -374,10 +407,24 @@ class SemanticVisitor(Visitor[None, None]):
 
         self._validate_where(metadata, node.where)
         self._validate_text_select(node, metadata)
+        self._validate_vector_select(node, metadata)
 
         self._validate_force(
             node.table, node.force_indexes, node.force_seqscan, node.force_all_indexes
         )
+
+    def visit_set(self, node: SetStm) -> None:
+        if node.name != 'ivf.probes':
+            raise ValueError(
+                f"Error semantico: variable de sesion no soportada: "
+                f"'{node.name}'"
+            )
+
+        if not isinstance(node.value, int) or isinstance(node.value, bool) \
+                or node.value <= 0:
+            raise ValueError(
+                "Error semantico: ivf.probes debe ser un entero positivo"
+            )
 
     def visit_delete(self, node: DeleteStm) -> None:
         if not self._table_exists(node.table):
@@ -425,8 +472,78 @@ class SemanticVisitor(Visitor[None, None]):
                     f"con una columna de '{metadata.name}'"
                 )
         if node.order_by is not None and node.order_by != node.score_alias:
+            if metadata is not None and not (
+                node.vector_distance is not None
+                and node.order_by == node.vector_distance.alias
+            ):
+                self._require_column(metadata, node.order_by)
+        if node.limit is not None and node.limit < 0:
+            raise ValueError("Error semantico: LIMIT debe ser no negativo")
+
+    def _validate_vector_select(self, node: SelectStm, metadata) -> None:
+        """Reglas de la distancia vectorial en la lista de salida."""
+        distance = node.vector_distance
+
+        if distance is None:
+            return
+
+        if self._get_table_storage(node.table) is StorageKind.SEQUENTIAL:
+            raise ValueError(
+                "Error semantico: las consultas vectoriales requieren una "
+                f"tabla HEAP y '{node.table}' es SEQUENTIAL"
+            )
+
+        if node.score_alias is not None:
+            raise ValueError(
+                "Error semantico: COSINE_SCORE() y una distancia vectorial "
+                "no pueden combinarse en la misma consulta"
+            )
+
+        if metadata is not None:
+            self._require_column(metadata, distance.column)
+            column = metadata.columns[metadata.col_index(distance.column)]
+
+            if column['type'].upper() != 'VECTOR':
+                raise ValueError(
+                    f"Error semantico: la distancia vectorial requiere una "
+                    f"columna VECTOR y '{distance.column}' no lo es"
+                )
+
+            from vectorindex.vectors import VectorError, parse_vector
+
+            try:
+                vector = parse_vector(distance.literal)
+            except VectorError as exc:
+                raise ValueError(f"Error semantico: {exc}") from exc
+
+            dimension = column.get('dim')
+
+            if dimension is not None and len(vector) != dimension:
+                raise ValueError(
+                    f"Error semantico: el vector de consulta tiene "
+                    f"{len(vector)} componentes y la columna "
+                    f"'{distance.column}' espera {dimension}"
+                )
+
+            try:
+                metadata.col_index(distance.alias)
+            except ValueError:
+                pass
+            else:
+                raise ValueError(
+                    f"Error semantico: el alias '{distance.alias}' coincide "
+                    f"con una columna de '{metadata.name}'"
+                )
+
+        if node.order_by is not None and node.order_by != distance.alias:
             if metadata is not None:
                 self._require_column(metadata, node.order_by)
+
+        if node.order_by == distance.alias and node.order_desc:
+            raise ValueError(
+                "Error semantico: la distancia vectorial solo se ordena ASC"
+            )
+
         if node.limit is not None and node.limit < 0:
             raise ValueError("Error semantico: LIMIT debe ser no negativo")
 
@@ -641,6 +758,9 @@ class SemanticVisitor(Visitor[None, None]):
             return isinstance(value, (int, float)) and not isinstance(value, bool)
 
         if type_name == 'CHAR':
+            return isinstance(value, str)
+
+        if type_name == 'VECTOR':
             return isinstance(value, str)
 
         return False

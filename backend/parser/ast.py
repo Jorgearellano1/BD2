@@ -35,6 +35,7 @@ class DataType(Enum):
     FLOAT = auto()
     DOUBLE = auto()
     CHAR = auto()
+    VECTOR = auto()
 
 
 class StorageType(Enum):
@@ -47,6 +48,7 @@ class IndexType(Enum):
     HASH = auto()
     INVERTED = auto()
     RTREE = auto()
+    IVF = auto()
 
 
 # Expressions
@@ -94,12 +96,23 @@ class IdExp(Exp):
 
 @dataclass
 class MatchExp(Exp):
-    """columna MATCH 'consulta' (recuperacion textual, P2 Parte 3)."""
+    """columna MATCH 'consulta' (recuperacion textual)."""
     column: str
     query: str
 
     def accept(self, visitor: Visitor[S, E]) -> E:
         return visitor.visit_match_exp(self)
+
+
+@dataclass
+class VectorDistance:
+    """Item de SELECT: columna <op> '[...]' AS alias."""
+
+    column: str
+    operator: str
+    literal: str
+    alias: str
+    position: int
 
 
 # Table definitions
@@ -186,18 +199,41 @@ class SelectStm(Stm):
     order_by: str | None = None
     order_desc: bool = False
     limit: int | None = None
+    # Item de distancia vectorial: embedding <=> '[...]' AS dist.
+    vector_distance: VectorDistance | None = None
 
     def output_columns(self) -> list[str] | None:
-        """Nombres de salida en orden, incluido el alias del score."""
-        if self.columns is None and self.score_alias is None:
+        """Nombres de salida en orden, incluidos score y distancia."""
+        if self.columns is None and self.score_alias is None \
+                and self.vector_distance is None:
             return None
-        names = list(self.columns or [])
+
+        items: list[tuple[int, str]] = list(enumerate(self.columns or []))
+
         if self.score_alias is not None:
-            names.insert(self.score_position or 0, self.score_alias)
-        return names
+            items.append((self.score_position or 0, self.score_alias))
+
+        if self.vector_distance is not None:
+            items.append(
+                (self.vector_distance.position, self.vector_distance.alias)
+            )
+
+        items.sort(key=lambda item: item[0])
+        return [name for _, name in items]
 
     def accept(self, visitor: Visitor[S, E]) -> S:
         return visitor.visit_select(self)
+
+
+@dataclass
+class SetStm(Stm):
+    """SET ivf.probes = N."""
+
+    name: str
+    value: int | float | str
+
+    def accept(self, visitor: Visitor[S, E]) -> S:
+        return visitor.visit_set(self)
 
 
 @dataclass
