@@ -9,7 +9,7 @@ venv/
 *.egg-info/
 dist/
 build/
-storage/*.bin
+storage/
 benchmarks/results/*.csv
 benchmarks/results/*.json
 .DS_Store
