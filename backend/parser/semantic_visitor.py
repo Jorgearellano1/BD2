@@ -90,6 +90,8 @@ def _index_kind(index_type: IndexType) -> IndexKind:
         return IndexKind.HASH
     if index_type is IndexType.INVERTED:
         return IndexKind.INVERTED
+    if index_type is IndexType.RTREE:
+        return IndexKind.RTREE
     return IndexKind.BTREE
 
 

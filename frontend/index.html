@@ -26,7 +26,7 @@
         <textarea id="sql" aria-label="Consulta SQL" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off">SELECT * FROM estudiantes
 WHERE Student_ID &gt;= 100 AND Student_ID &lt;= 150;</textarea>
       </div>
-      <div class="editor-footer"><span id="query-state" role="status"></span><button class="primary" id="execute" type="button">Ejecutar</button></div>
+      <div class="editor-footer"><span id="query-state" role="status"></span><div class="editor-actions"><select id="examples" aria-label="Consultas de ejemplo"><option value="">Ejemplos…</option></select><button class="primary" id="execute" type="button">Ejecutar</button></div></div>
     </section>
     <section class="panel results-panel" aria-label="Resultados y plan de ejecución">
       <div class="panel-header"><div role="tablist" aria-label="Vista de consulta" class="result-tabs"><button id="results-tab" type="button" role="tab" aria-selected="true" aria-controls="results-view">Resultados</button><button id="explain-tab" type="button" role="tab" aria-selected="false" aria-controls="explain-view" tabindex="-1">Explain</button></div><span class="record-count" id="record-count">—</span></div>

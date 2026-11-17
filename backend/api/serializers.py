@@ -123,6 +123,8 @@ def index_to_dict(index: IndexMetadata) -> dict:
         'column': index.column,
         'type': index.kind.value,
     }
+    if index.spatial_columns:
+        payload['spatial_columns'] = list(index.spatial_columns)
     if index.options:
         payload['options'] = dict(index.options)
     return payload

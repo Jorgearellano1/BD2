@@ -42,6 +42,7 @@ class IndexResponse(BaseModel):
     table: str
     column: str
     type: str
+    spatial_columns: list[str] | None = None
     options: dict | None = None
 
 
