@@ -994,58 +994,13 @@ class RTree:
 
 
     def _search_recursive(self, page_id, query_mbr, results):
-        """Recorre el R-Tree mostrando trazas de la jerarquía de búsqueda."""
-
-        targets = {
-            "Shusf": (60.0, 31.81),
-            "Bahawalnagar": (73.25, 30.0),
-        }
+        """Recorre las ramas cuyos MBR intersectan con la consulta."""
 
         node = self._read_node(page_id)
 
-        def contains_point(mbr, point):
-            return (
-                mbr.xmin <= point[0] <= mbr.xmax
-                and mbr.ymin <= point[1] <= mbr.ymax
-            )
-
-        # Solo activar trazas si alguna entrada contiene un punto objetivo.
-        relevant = []
-
         for entry in node.entries:
-            for name, point in targets.items():
-                if contains_point(entry.mbr, point):
-                    relevant.append((name, entry))
-
-        traced = bool(relevant)
-
-        if traced:
-            print(
-                f"\n[TRACE-SEARCH] Página={page_id} "
-                f"Tipo={'HOJA' if node.is_leaf else 'INTERNO'} "
-                f"Entradas={len(node.entries)}"
-            )
-
-            for name, entry in relevant:
-                print(
-                    f"[TRACE-SEARCH] Página={page_id} "
-                    f"contiene {name} | MBR={entry.mbr}"
-                )
-
-        for index, entry in enumerate(node.entries):
 
             intersects = entry.mbr.intersects(query_mbr)
-
-            if traced and any(
-                entry is target_entry
-                for _, target_entry in relevant
-            ):
-                print(
-                    f"[TRACE-SEARCH] Página={page_id} "
-                    f"Entrada={index} "
-                    f"Intersects={intersects} "
-                    f"MBR={entry.mbr}"
-                )
 
             if not intersects:
                 continue
@@ -1054,18 +1009,7 @@ class RTree:
 
                 results.append(entry.rid)
 
-                if traced:
-                    print(
-                        f"[TRACE-SEARCH] RID encontrado={entry.rid}"
-                    )
-
             else:
-
-                if traced:
-                    print(
-                        f"[TRACE-SEARCH] Bajando desde página={page_id} "
-                        f"hacia hijo={entry.child_page_id}"
-                    )
 
                 self._search_recursive(
                     entry.child_page_id,
